@@ -25,7 +25,7 @@ manage_build(){
 		# Cria a tabela de versões
 		create_db)
 			`printf $index | grep -q "wine"` && {
-				curl -s ${wine_urls[${index}]} | grep -Eon "(href=.*download.*.tar.(xz|zst))" | sort -r | awk -F 'href="' '{print $2}' > ${HOME}/.local/share/wineup/releases_${index}
+				curl -s ${wine_urls[${index}]} | grep -Eon "(href=.*download.*.tar.(xz|zst))" | grep -v "proton" | sort -r | awk -F 'href="' '{print $2}' > ${HOME}/.local/share/wineup/releases_${index}
 			} || {
 				curl -s ${proton_urls[${index}]} | grep -Eon "(href=.*download.*.tar.(gz|xz))" | sort -r | awk -F 'href="' '{print $2}' > ${HOME}/.local/share/wineup/releases_${index}
 			}
@@ -37,7 +37,7 @@ manage_build(){
 		update_db)
 			[[ -e /tmp/wineup ]] || mkdir /tmp/wineup
 			`printf $index | grep -q "wine"` && {
-				curl -s ${wine_urls[${index}]} | grep -Eon "(href=.*download.*.tar.(xz|zst))" | sort -r | awk -F 'href="' '{print $2}' > /tmp/wineup/${tmprefix}_releases_${index}.tmp
+				curl -s ${wine_urls[${index}]} | grep -Eon "(href=.*download.*.tar.(xz|zst))" | grep -v "proton" | sort -r | awk -F 'href="' '{print $2}' > /tmp/wineup/${tmprefix}_releases_${index}.tmp
 			} || {
 				curl -s ${proton_urls[${index}]} | grep -Eon "(href=.*download.*.tar.(gz|xz))" | sort -r | awk -F 'href="' '{print $2}' > /tmp/wineup/${tmprefix}_releases_${index}.tmp
 			}
