@@ -36,13 +36,10 @@ manage_build(){
 		# Atualiza a tabela de versões
 		update_db)
 			[[ -e /tmp/wineup ]] || mkdir /tmp/wineup
-			echo $index
 			`printf $index | grep -q "wine"` && {
-				echo $1
 				curl -s ${wine_urls[${index}]} | grep -Eon "(href=.*download.*.tar.(xz|zst))" | sort -r | awk -F 'href="' '{print $2}' > /tmp/wineup/${tmprefix}_releases_${index}.tmp
 			} || {
 				curl -s ${proton_urls[${index}]} | grep -Eon "(href=.*download.*.tar.(gz|xz))" | sort -r | awk -F 'href="' '{print $2}' > /tmp/wineup/${tmprefix}_releases_${index}.tmp
-				echo 2
 			}
 			diff /tmp/wineup/${tmprefix}_releases_${index}.tmp ${HOME}/.local/share/wineup/releases_${index} | grep -Eo "(\/.*.tar.(gz|xz|zst))" > /tmp/wineup/${tmprefix}_releases_${index}.diff.tmp && {
 				printf '%s\n' "Encontrado nova(s) versões (${index}):"
