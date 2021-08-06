@@ -1,5 +1,10 @@
 # wineup
 Baixa e atualiza versões do WINE e PROTON
+* Compativel com:
+  * WINE-GE
+  * WINE-Lutris
+  * Proton-GE
+  * Proton-TKG 
 
 ## Modo de Uso:
 ### primeiro executar o "wineup"
