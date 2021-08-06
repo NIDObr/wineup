@@ -86,9 +86,9 @@ download_build(){
 			printf "\n\"`basename ${url_get}`\" baixado com sucesso\n"
 			printf "Extraindo arquivos...\n\n"
 			`basename ${url_get} | grep -qi "proton"` && {
-				tar xvaf "/tmp/wineup/`basename ${url_get}`" -C $HOME/.steam/steam/compatibilitytools.d && printf "Extração completa!\n\n"
+				tar xaf "/tmp/wineup/`basename ${url_get}`" -C $HOME/.steam/steam/compatibilitytools.d && printf "Extração completa!\n\n"
 			} || {
-				tar xvaf "/tmp/wineup/`basename ${url_get}`" -C "$dir_winebuilds" && printf "Extração completa!\n\n"
+				tar xaf "/tmp/wineup/`basename ${url_get}`" -C "$dir_winebuilds" && printf "Extração completa!\n\n"
 			}
 			rm -rf /tmp/wineup
 		}
