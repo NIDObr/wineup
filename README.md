@@ -3,6 +3,7 @@ Baixa e atualiza versões do WINE e PROTON
 * Compativel com:
   * WINE-GE
   * WINE-Lutris
+  * WINE-TKG
   * Proton-GE
   * Proton-TKG 
 
