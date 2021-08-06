@@ -35,11 +35,11 @@ manage_build(){
 		;;
 		# Atualiza a tabela de versões
 		update_db)
-			echo $1
 			[[ -e /tmp/wineup ]] || mkdir /tmp/wineup
+			echo $index
 			`printf $index | grep -q "wine"` && {
+				echo $1
 				curl -s ${wine_urls[${index}]} | grep -Eon "(href=.*download.*.tar.(xz|zst))" | sort -r | awk -F 'href="' '{print $2}' > /tmp/wineup/${tmprefix}_releases_${index}.tmp
-				echo 1
 			} || {
 				curl -s ${proton_urls[${index}]} | grep -Eon "(href=.*download.*.tar.(gz|xz))" | sort -r | awk -F 'href="' '{print $2}' > /tmp/wineup/${tmprefix}_releases_${index}.tmp
 				echo 2
@@ -57,9 +57,6 @@ manage_build(){
 						*) a=0 printf '%s\n' "Opção desconhecida" ;;
 					esac
 				done
-			} || {
-				printf '%s\n' "Nada a fazer, saindo..."
-				exit 0
 			}
 		;;
 		# Seleciona uma versão disponivel para download
