@@ -1,0 +1,8 @@
+# Lista de mirros WINE e Proton(GITHUB)
+mirrors_urls=(
+	[ winege ]="https://github.com/GloriousEggroll/wine-ge-custom/releases"
+	[ winelutris ]="https://github.com/lutris/wine/releases"
+	[ winetkg ]=https://github.com/Frogging-Family/wine-tkg-git/releases
+	[ protonge ]="https://github.com/GloriousEggroll/proton-ge-custom/releases"
+	[ protontkg ]=https://github.com/Frogging-Family/wine-tkg-git/releases
+)

@@ -1,0 +1,11 @@
+# Diretorio padrão download
+dir_downloads="${HOME}/wine builds"
+
+# Diretorio padão Proton
+dir_steamproton="${HOME}/.steam/steam/compatibilitytools.d"
+
+# Diretorio de usuario
+dir_wineup_user="${HOME}/.config/wineup"
+
+# "1" para baixar atualizações automaticamente e "0" não baixa automaticamente.
+auto_update=1
