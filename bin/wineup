@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+
+#------------------------------------------------------------------
+# Author: NidoBr
+# More: < https://github.com/NIDObr >
+# Version: 0.2-beta 19/08/2021
+# Info: Baixa e atualiza versões do WINE e Proton
+# License: BSD-3-Clause License
+#------------------------------------------------------------------
+
+#----------------------------Vars----------------------------------
+
+declare -A mirrors_urls
+
+# Carrega as configuraões
+source /etc/wineup/wineup_cfg
+source /etc/wineup/wineup_mirrors
+
+#----------------------------Funçoes-------------------------------
+
+# Baixa atualizaçoes
+download_build(){
+	printf "\nIniciando Downloads\n"
+	[ -e "$dir_downloads" ] || mkdir "$dir_downloads"
+	[ -e /tmp/wineup ] || mkdir /tmp/wineup
+	if [ "$1" == "up" ];then
+		url_get="$2"
+	else
+		url_get=`eval cat ${dir_wineup_user}/releases_* | grep -Eo ".*${1}.*${2}.*${3}.*"`
+	fi
+	printf '%s\n' "Baixando de: \"https://github.com${url_get}\""
+	wget -qnv --show-progress "https://github.com/${url_get}" -O /tmp/wineup/`basename "https://github.com/${url_get}"` && {
+		printf "\n\"`basename ${url_get}`\" baixado com sucesso\n"
+		printf "Extraindo arquivos...\n\n"
+		`basename ${url_get} | grep -qi "proton"` && {
+			tar xaf "/tmp/wineup/`basename ${url_get}`" -C "${dir_steamproton}" && printf "Extração completa!\n\n"
+		} || {
+			tar xaf "/tmp/wineup/`basename ${url_get}`" -C "${dir_downloads}" && printf "Extração completa!\n\n"
+		}
+	}
+}
+
+#----------------------------Main-----------------------------------
+
+# Parser
+case $1 in
+	-c)
+		printf '%s\n' "Verificando mirrors..."
+		# Verifica se o diretorio exixte
+		[ -e ${dir_wineup_user} ] || {
+			mkdir ${dir_wineup_user}
+		} && {
+			# Recria
+			rm -rf ${dir_wineup_user}
+			mkdir ${dir_wineup_user}
+		}
+		for index in `cat /etc/wineup/wineup_mirrors | grep -Eo '( (wine|proton)[a-z]* )'`;do
+			printf "${mirrors_urls[ ${index} ]}"
+			# Verifica se as URLs são validas
+			if `wget -q --spider "${mirrors_urls[ ${index} ]}"`;then
+				printf "		[ ok ]\n"
+				if `printf $index | grep -q "wine"`;then
+					curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*[Ww]ine.*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> ${dir_wineup_user}/releases_${index}
+				elif `printf $index | grep -q "proton"`;then
+					curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*[Pp]roton.*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> ${dir_wineup_user}/releases_${index}
+				fi
+			else
+				printf "	[ fail ]\n"
+			fi
+			printf "${mirrors_urls[ ${index} ]}" | awk -F '/' '{print $4":"$5" "$4"/"$5"/"$6}' >> ${dir_wineup_user}/releases
+		done
+		printf "Pronto\nDeseja ativar o Update automatico para alguma versão?  [ctrl+c para sair]\n\n"
+		# Ativa o update automatico para a build escolhida
+		select build_select in `cat ${dir_wineup_user}/releases | awk -F " " '{print $1}'` Sair;do
+			[[ "$build_select" == "Sair" ]] && exit 0
+			printf '%s\n' "Adicionando \"${build_select}\""
+			printf "`cat ${dir_wineup_user}/releases | grep $build_select`\n" >> ${dir_wineup_user}/autoupdate
+		done
+
+	;;
+	-d)
+		[[ -e /tmp/wineup ]] || mkdir /tmp/wineup
+		printf "Listar versões do WINE ou Proton?  [ctrl+c para sair]\n"
+		select op_tipo in "wine" "proton" "Sair";do
+			case $op_tipo in
+				wine|proton)
+					printf "Listando as versões disponiveins: \n\n"
+					printf "Deseja baixar alguma versão?  [ctrl+c para sair]\n"
+					select build_select in `eval cat ${dir_wineup_user}/releases_${op_tipo}* | awk -F '/' '{print $3"__"$6"__"$7}'`;do
+						cat ${dir_wineup_user}/releases_* | grep $build_select > /tmp/wineup/${tmprefix}_select_version.tmp
+						download_build `printf $build_select | awk -F '__' '{print $1" "$2" "$3}'`
+					done
+				;;
+				sair) exit 0;;
+				*) continue;;
+			esac
+		done
+	;;
+	-u)
+		rm -rf /tmp/wineup
+		[ -e /tmp/wineup ] || mkdir /tmp/wineup
+		for index in `cat /etc/wineup/wineup_mirrors | grep -Eo '( (wine|proton)[a-z]* )'`;do
+			if `printf $index | grep -q "wine"`;then
+				curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*[Ww]ine.*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> /tmp/wineup/releases_${index}
+			elif `printf $index | grep -q "proton"`;then
+				curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*[Pp]roton.*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> /tmp/wineup/releases_${index}
+			fi
+			diff /tmp/wineup/releases_${index} ${dir_wineup_user}/releases_${index} | grep -Eo '\/.*' >> /tmp/wineup/new_releases_${index}
+			cat /tmp/wineup/new_releases_${index} >> ${dir_wineup_user}/releases_${index}
+			for autoupdate in `cat ${dir_wineup_user}/autoupdate | awk -F ' ' '{print $2}'`;do
+				for new_url in `cat /tmp/wineup/new_releases_${index} | grep $autoupdate`;do
+					download_build up $new_url
+				done
+			done
+		done
+	;;
+	-h|--help|*)
+			echo 1
+	;;
+esac
