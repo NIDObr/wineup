@@ -8,10 +8,12 @@ Baixa e atualiza versões do WINE e PROTON
   * Proton-TKG 
 
 ## Modo de Uso:
-### primeiro executar o "wineup"
-$ wineup
+### primeiro executar o "wineup -c"
+$ wineup -c
 ### Sera criado as listas com as versõe disponiveins
-### E para atualizar execute o wineup novamente, se ouver alguma atialização, sera baixada.
-
-### Para baixar uma versão diferente use a opção "-d"
+### E para atualizar execute "wineup -u", se ouver alguma atualização, sera baixada.
+$ wineup -u
+### Para baixar uma versão especifica use a opção "-d"
 $ wineup -d
+
+### Tambem pode ser adicionado no crontab.
