@@ -102,7 +102,7 @@ case $1 in
 		[ -e /tmp/wineup ] || mkdir /tmp/wineup
 		for index in `cat /etc/wineup/wineup_mirrors | grep -Eo '( (wine|proton)[a-z]* )'`;do
 			if `printf $index | grep -q "wine"`;then
-				curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*[Ww]ine.*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> /tmp/wineup/releases_${index}
+				curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*([Ww]ine|lutris).*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> /tmp/wineup/releases_${index}
 			elif `printf $index | grep -q "proton"`;then
 				curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*[Pp]roton.*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> /tmp/wineup/releases_${index}
 			fi
