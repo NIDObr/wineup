@@ -97,7 +97,7 @@ case $1 in
 			esac
 		done
 	;;
-	-u)
+	-u|"-ud"|"-du")
 		rm -rf /tmp/wineup
 		[ -e /tmp/wineup ] || mkdir /tmp/wineup
 		for index in `cat /etc/wineup/wineup_mirrors | grep -Eo '( (wine|proton)[a-z]* )'`;do
@@ -108,11 +108,13 @@ case $1 in
 			fi
 			diff /tmp/wineup/releases_${index} ${dir_wineup_user}/releases_${index} | grep -Eo '\/.*' >> /tmp/wineup/new_releases_${index}
 			cat /tmp/wineup/new_releases_${index} >> ${dir_wineup_user}/releases_${index}
-			for autoupdate in `cat ${dir_wineup_user}/autoupdate | awk -F ' ' '{print $2}'`;do
-				for new_url in `cat /tmp/wineup/new_releases_${index} | grep $autoupdate`;do
-					download_build up $new_url
+			if [ "$1" == "-ud" ]||[ "$1" == "-du" ];then
+				for autoupdate in `cat ${dir_wineup_user}/autoupdate | awk -F ' ' '{print $2}'`;do
+					for new_url in `cat /tmp/wineup/new_releases_${index} | grep $autoupdate`;do
+						download_build up $new_url
+					done
 				done
-			done
+			fi
 		done
 	;;
 	-h|--help|*)
