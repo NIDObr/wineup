@@ -60,7 +60,7 @@ case $1 in
 			if `wget -q --spider "${mirrors_urls[ ${index} ]}"`;then
 				printf "		[ ok ]\n"
 				if `printf $index | grep -q "wine"`;then
-					curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*[Ww]ine.*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> ${dir_wineup_user}/releases_${index}
+					curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*([Ww]ine|lutris).*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> ${dir_wineup_user}/releases_${index}
 				elif `printf $index | grep -q "proton"`;then
 					curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*[Pp]roton.*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> ${dir_wineup_user}/releases_${index}
 				fi
