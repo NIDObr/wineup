@@ -11,8 +11,10 @@ Baixa e atualiza versões do WINE e PROTON
 ### primeiro executar o "wineup -c"
 $ wineup -c
 ### Sera criado as listas com as versõe disponiveins
-### E para atualizar execute "wineup -u", se ouver alguma atualização, sera baixada.
+### E para atualizar execute "wineup -u"
 $ wineup -u
+### Para atualizar e baixar "wineup -ud"
+$ wineup -ud
 ### Para baixar uma versão especifica use a opção "-d"
 $ wineup -d
 
