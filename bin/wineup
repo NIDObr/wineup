@@ -20,16 +20,17 @@ source /etc/wineup/wineup_mirrors
 
 # Baixa atualizaçoes
 download_build(){
+printf $@
 	printf "\nIniciando Downloads\n"
 	[ -e "$dir_downloads" ] || mkdir "$dir_downloads"
 	[ -e /tmp/wineup ] || mkdir /tmp/wineup
 	if [ "$1" == "up" ];then
 		url_get="$2"
 	else
-		url_get=`eval cat ${dir_wineup_user}/releases_* | grep -Eo ".*${1}.*${2}.*${3}.*"`
+		url_get=`eval cat ${dir_wineup_user}/releases_* | grep -Eo ".*${1}.*${2}.*${3}.* "` 
 	fi
-	printf '%s\n' "Baixando de: \"https://github.com${url_get}\""
-	wget -qnv --show-progress "https://github.com/${url_get}" -O /tmp/wineup/`basename "https://github.com/${url_get}"` && {
+	printf '%s\n' "Baixando de: \"${url_get}\""
+	wget -q --show-progress "${url_get}" -O /tmp/wineup/`basename "${url_get}"` && {
 		printf "\n\"`basename ${url_get}`\" baixado com sucesso\n"
 		printf "Extraindo arquivos...\n\n"
 		`basename ${url_get} | grep -qi "proton"` && {
@@ -45,7 +46,6 @@ download_build(){
 # Parser
 case $1 in
 	-c)
-		printf '%s\n' "Verificando mirrors..."
 		# Verifica se o diretorio exixte
 		[ -e ${dir_wineup_user} ] || {
 			mkdir ${dir_wineup_user}
@@ -54,20 +54,25 @@ case $1 in
 			rm -rf ${dir_wineup_user}
 			mkdir ${dir_wineup_user}
 		}
+		# Gera as listas de versões disponiveins
 		for index in `cat /etc/wineup/wineup_mirrors | grep -Eo '( (wine|proton)[a-z]* )'`;do
-			printf "${mirrors_urls[ ${index} ]}"
-			# Verifica se as URLs são validas
-			if `wget -q --spider "${mirrors_urls[ ${index} ]}"`;then
-				printf "		[ ok ]\n"
-				if `printf $index | grep -q "wine"`;then
-					curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*([Ww]ine|lutris).*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> ${dir_wineup_user}/releases_${index}
-				elif `printf $index | grep -q "proton"`;then
-					curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*[Pp]roton.*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> ${dir_wineup_user}/releases_${index}
+			printf '%s\n' "Atualizando de: "${mirrors_urls[ ${index} ]}""
+			printf "${mirrors_urls[ ${index} ]}" | awk -F '/' '{print $4"_"$5}' >> ${dir_wineup_user}/releases
+			for release in `lynx --dump "${mirrors_urls[ ${index} ]}" | grep -Eo "https\:\/\/.*releases.*\.tar\.(gz|xz|zst)"`;do
+				tag_version=`printf "${release}" | awk -F '/' '{print $8}'`
+				release_date=`curl -s "${mirrors_urls[ ${index} ]}/tag/${tag_version}" | grep -Eo "[0-9]{4}\-[0-9]{2}\-[0-9]{2}"`
+				if `printf "${index}" | grep -qi "wine"`;then
+					if `printf "${release}" | awk -F '/' '{print $9}' | grep -qi "wine"`;then
+						printf "${release} ${release_date}\n" >> ${dir_wineup_user}/releases_${index}
+						printf '%s\n' "${release} ${release_date}" | awk -F '/' '{print "* "$5": "$8" "$9}'
+					fi
+				else
+					if `printf "${release}" | awk -F '/' '{print $9}' | grep -qi "proton"`;then
+						printf "${release} ${release_date}\n" >> ${dir_wineup_user}/releases_${index}
+						printf '%s\n' "${release} ${release_date}" | awk -F '/' '{print "* "$5": "$8" "$9}'
+					fi
 				fi
-			else
-				printf "	[ fail ]\n"
-			fi
-			printf "${mirrors_urls[ ${index} ]}" | awk -F '/' '{print $4":"$5" "$4"/"$5"/"$6}' >> ${dir_wineup_user}/releases
+			done
 		done
 		printf "Pronto\nDeseja ativar o Update automatico para alguma versão?  [ctrl+c para sair]\n\n"
 		# Ativa o update automatico para a build escolhida
@@ -86,9 +91,10 @@ case $1 in
 				wine|proton)
 					printf "Listando as versões disponiveins: \n\n"
 					printf "Deseja baixar alguma versão?  [ctrl+c para sair]\n"
-					select build_select in `eval cat ${dir_wineup_user}/releases_${op_tipo}* | awk -F '/' '{print $3"__"$6"__"$7}'`;do
+					select build_select in `eval cat ${dir_wineup_user}/releases_${op_tipo}* | awk -F '/' '{print $5"__"$8"__"$9}' | awk -F ' ' '{print $1"__"$2}'`;do
 						[ -z "${build_select}" ] && continue
 						cat ${dir_wineup_user}/releases_* | grep $build_select > /tmp/wineup/${tmprefix}_select_version.tmp
+						printf $build_select | awk -F '__' '{print $1" "$2" "$3}'
 						download_build `printf $build_select | awk -F '__' '{print $1" "$2" "$3}'`
 					done
 				;;
@@ -100,22 +106,38 @@ case $1 in
 	-u|"-ud"|"-du")
 		rm -rf /tmp/wineup
 		[ -e /tmp/wineup ] || mkdir /tmp/wineup
+		printf '%s\n' "Atualizando..."
 		for index in `cat /etc/wineup/wineup_mirrors | grep -Eo '( (wine|proton)[a-z]* )'`;do
-			if `printf $index | grep -q "wine"`;then
-				curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*([Ww]ine|lutris).*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> /tmp/wineup/releases_${index}
-			elif `printf $index | grep -q "proton"`;then
-				curl -s "${mirrors_urls[ ${index} ]}" | grep -Eon "(href=.*download.*[Pp]roton.*.tar.(xz|zst|gz))" | sort -r | awk -F 'href="' '{print $2}' >> /tmp/wineup/releases_${index}
-			fi
-			diff /tmp/wineup/releases_${index} ${dir_wineup_user}/releases_${index} | grep -Eo '\/.*' >> /tmp/wineup/new_releases_${index}
-			cat /tmp/wineup/new_releases_${index} >> ${dir_wineup_user}/releases_${index}
-			if [ "$1" == "-ud" ]||[ "$1" == "-du" ];then
-				for autoupdate in `cat ${dir_wineup_user}/autoupdate | awk -F ' ' '{print $2}'`;do
-					for new_url in `cat /tmp/wineup/new_releases_${index} | grep $autoupdate`;do
-						download_build up $new_url
-					done
-				done
-			fi
+			for release in `lynx --dump "${mirrors_urls[ ${index} ]}" | grep -Eo "https\:\/\/.*releases.*\.tar\.(gz|xz|zst)"`;do
+				tag_version=`printf "${release}" | awk -F '/' '{print $8}'`
+				release_date=`curl -s "${mirrors_urls[ ${index} ]}/tag/${tag_version}" | grep -Eo "[0-9]{4}\-[0-9]{2}\-[0-9]{2}"`
+				if `printf "${index}" | grep -qi "wine"`;then
+					if `printf "${release}" | awk -F '/' '{print $9}' | grep -qi "wine"`;then
+						printf "${release} ${release_date}\n" >> /tmp/wineup/tmpreleases_${index}
+					fi
+				else
+					if `printf "${release}" | awk -F '/' '{print $9}' | grep -qi "proton"`;then
+						printf "${release} ${release_date}\n" >> /tmp/wineup/tmpreleases_${index}
+					fi
+				fi
+			done
+			diff "/tmp/wineup/tmpreleases_${index}" "${dir_wineup_user}/releases_${index}" | grep -o "https.* " >> /tmp/wineup/tmpreleases
+			mv -f /tmp/wineup/tmpreleases_${index} ${dir_wineup_user}/releases_${index}
 		done
+		[ -s /tmp/wineup/tmpreleases ] && {
+			printf '%s\n' "Novas versões encontradas: "
+			cat /tmp/wineup/tmpreleases | awk -F '/' '{print "* "$5": "$8" "$9}'
+		} || {
+			printf '%s\n' "Nada a fazer."
+		}
+
+#		if [ "$1" == "-ud" ]||[ "$1" == "-du" ];then
+#			for autoupdate in `cat ${dir_wineup_user}/autoupdate | awk -F ' ' '{print $2}'`;do
+#				for new_url in `cat /tmp/wineup/new_releases_${index} | grep $autoupdate`;do
+#					download_build up $new_url
+#				done
+#			done
+#		fi
 	;;
 	-h|--help|*)
 			echo 1
