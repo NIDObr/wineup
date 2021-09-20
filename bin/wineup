@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
 
 #------------------------------------------------------------------
-# Author: NidoBr
-# More: < https://github.com/NIDObr >
-# Version: 0.2-beta 19/08/2021
-# Info: Baixa e atualiza versões do WINE e Proton
+# Autor: NidoBr
+# Mais: < https://github.com/NIDObr >
+# Email: coqecoisa@gmail.com
+# Versão: 0.3-beta 20/09/2021
+# Sobre: Baixa e atualiza versões do WINE e Proton
 # License: BSD-3-Clause License
 #------------------------------------------------------------------
 
+#---------------------------changelog: ----------------------------
+# Versão: 0.3-beta 20/09/2021
+#	- Reformulação em todo o codigo (opções -c, -d e -u)
+#	- Troca parcial do curl pelo lynx
+#	- Agora a data do lançamento do wine/proton no GitHub é exibido
+#	- Download automatico ( -ud ), n
+#
 #----------------------------Vars----------------------------------
 
 declare -A mirrors_urls
@@ -18,21 +26,20 @@ source /etc/wineup/wineup_mirrors
 
 #----------------------------Funçoes-------------------------------
 
-# Baixa atualizaçoes
+# Responsavel por baixar os arquivos solicitados
 download_build(){
-printf $@
 	printf "\nIniciando Downloads\n"
+	# Verifica se os diretorios estão criados
 	[ -e "$dir_downloads" ] || mkdir "$dir_downloads"
 	[ -e /tmp/wineup ] || mkdir /tmp/wineup
-	if [ "$1" == "up" ];then
-		url_get="$2"
-	else
-		url_get=`eval cat ${dir_wineup_user}/releases_* | grep -Eo ".*${1}.*${2}.*${3}.* "` 
-	fi
+	# Localiza a url do arquivo solicitado pelas outras funçoẽs
+	url_get=`eval cat ${dir_wineup_user}/releases_* | grep -Eo ".*${1}.*${2}.*${3}.* "` 
 	printf '%s\n' "Baixando de: \"${url_get}\""
+	# Baixa o arquivo para uma pasta temporaria para extrailo posteriormente
 	wget -q --show-progress "${url_get}" -O /tmp/wineup/`basename "${url_get}"` && {
 		printf "\n\"`basename ${url_get}`\" baixado com sucesso\n"
 		printf "Extraindo arquivos...\n\n"
+		# Escolhe o diretorio apropriado (wine ou proton) e extrai o arquivo
 		`basename ${url_get} | grep -qi "proton"` && {
 			tar xaf "/tmp/wineup/`basename ${url_get}`" -C "${dir_steamproton}" && printf "Extração completa!\n\n"
 		} || {
@@ -58,9 +65,12 @@ case $1 in
 		for index in `cat /etc/wineup/wineup_mirrors | grep -Eo '( (wine|proton)[a-z]* )'`;do
 			printf '%s\n' "Atualizando de: "${mirrors_urls[ ${index} ]}""
 			printf "${mirrors_urls[ ${index} ]}" | awk -F '/' '{print $4"_"$5}' >> ${dir_wineup_user}/releases
+			# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
 			for release in `lynx --dump "${mirrors_urls[ ${index} ]}" | grep -Eo "https\:\/\/.*releases.*\.tar\.(gz|xz|zst)"`;do
 				tag_version=`printf "${release}" | awk -F '/' '{print $8}'`
+				# Data que o arquivo foi upado no github
 				release_date=`curl -s "${mirrors_urls[ ${index} ]}/tag/${tag_version}" | grep -Eo "[0-9]{4}\-[0-9]{2}\-[0-9]{2}"`
+				# Separa wine e proton, adiciona a entrada na lista de versões e formata para exibir na tela
 				if `printf "${index}" | grep -qi "wine"`;then
 					if `printf "${release}" | awk -F '/' '{print $9}' | grep -qi "wine"`;then
 						printf "${release} ${release_date}\n" >> ${dir_wineup_user}/releases_${index}
@@ -84,6 +94,7 @@ case $1 in
 
 	;;
 	-d)
+		# Baixa uma verção especifica das listas geradas anteriormente
 		[[ -e /tmp/wineup ]] || mkdir /tmp/wineup
 		printf "Listar versões do WINE ou Proton?  [ctrl+c para sair]\n"
 		select op_tipo in "wine" "proton" "Sair";do
@@ -104,6 +115,7 @@ case $1 in
 		done
 	;;
 	-u|"-ud"|"-du")
+		# Procura por atualizações, comparando as listas locais com novas (diff e Web-Scraping)
 		rm -rf /tmp/wineup
 		[ -e /tmp/wineup ] || mkdir /tmp/wineup
 		printf '%s\n' "Atualizando..."
@@ -121,6 +133,7 @@ case $1 in
 					fi
 				fi
 			done
+			# Compara e sobrescreve as listas
 			diff "/tmp/wineup/tmpreleases_${index}" "${dir_wineup_user}/releases_${index}" | grep -o "https.* " >> /tmp/wineup/tmpreleases
 			mv -f /tmp/wineup/tmpreleases_${index} ${dir_wineup_user}/releases_${index}
 		done
