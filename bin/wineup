@@ -143,7 +143,7 @@ case $1 in
 		} || {
 			printf '%s\n' "Nada a fazer."
 		}
-
+# N
 #		if [ "$1" == "-ud" ]||[ "$1" == "-du" ];then
 #			for autoupdate in `cat ${dir_wineup_user}/autoupdate | awk -F ' ' '{print $2}'`;do
 #				for new_url in `cat /tmp/wineup/new_releases_${index} | grep $autoupdate`;do
