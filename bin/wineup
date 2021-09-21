@@ -117,7 +117,7 @@ case $1 in
 						download_build `printf $build_select | awk -F '__' '{print $1" "$2" "$3}'`
 					done
 				;;
-				sair) exit 0;;
+				Sair) exit 0;;
 				*) continue;;
 			esac
 		done
