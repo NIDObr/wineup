@@ -4,12 +4,16 @@
 # Autor: NidoBr
 # Mais: < https://github.com/NIDObr >
 # Email: coqecoisa@gmail.com
-# Versão: 0.3-beta 20/09/2021
+# Versão: 0.4-beta 21/09/2021
 # Sobre: Baixa e atualiza versões do WINE e Proton
 # License: BSD-3-Clause License
 #------------------------------------------------------------------
 
 #---------------------------changelog: ----------------------------
+# Versão: 0.4-beta 21/09/2021
+#	- Adicionada opções longas
+#	- Download automatico funcionando
+#
 # Versão: 0.3-beta 20/09/2021
 #	- Reformulação em todo o codigo (opções -c, -d e -u)
 #	- Troca parcial do curl pelo lynx
@@ -33,7 +37,11 @@ download_build(){
 	[ -e "$dir_downloads" ] || mkdir "$dir_downloads"
 	[ -e /tmp/wineup ] || mkdir /tmp/wineup
 	# Localiza a url do arquivo solicitado pelas outras funçoẽs
-	url_get=`eval cat ${dir_wineup_user}/releases_* | grep -Eo ".*${1}.*${2}.*${3}.* "` 
+	if `printf $1 | grep -q 'https://'`;then
+		url_get="${1}"
+	else
+		url_get=`eval cat ${dir_wineup_user}/releases_* | grep -Eo ".*${1}.*${2}.*${3}.* "`
+	fi
 	printf '%s\n' "Baixando de: \"${url_get}\""
 	# Baixa o arquivo para uma pasta temporaria para extrailo posteriormente
 	wget -q --show-progress "${url_get}" -O /tmp/wineup/`basename "${url_get}"` && {
@@ -52,7 +60,7 @@ download_build(){
 
 # Parser
 case $1 in
-	-c)
+	-c|"--create")
 		# Verifica se o diretorio exixte
 		[ -e ${dir_wineup_user} ] || {
 			mkdir ${dir_wineup_user}
@@ -93,7 +101,7 @@ case $1 in
 		done
 
 	;;
-	-d)
+	-d|"--download")
 		# Baixa uma verção especifica das listas geradas anteriormente
 		[[ -e /tmp/wineup ]] || mkdir /tmp/wineup
 		printf "Listar versões do WINE ou Proton?  [ctrl+c para sair]\n"
@@ -114,7 +122,7 @@ case $1 in
 			esac
 		done
 	;;
-	-u|"-ud"|"-du")
+	-u|"-ud"|"-du"|"--update")
 		# Procura por atualizações, comparando as listas locais com novas (diff e Web-Scraping)
 		rm -rf /tmp/wineup
 		[ -e /tmp/wineup ] || mkdir /tmp/wineup
@@ -133,8 +141,8 @@ case $1 in
 					fi
 				fi
 			done
-			# Compara e sobrescreve as listas
-			diff "/tmp/wineup/tmpreleases_${index}" "${dir_wineup_user}/releases_${index}" | grep -o "https.* " >> /tmp/wineup/tmpreleases
+			# Compara e sobrescreve as listas, as novas versões ficarão no arquivo "/tmp/wineup/tmpreleases"
+			diff "/tmp/wineup/tmpreleases_${index}" "${dir_wineup_user}/releases_${index}" | grep -Eo "https.* [0-9\-]*" >> /tmp/wineup/tmpreleases
 			mv -f /tmp/wineup/tmpreleases_${index} ${dir_wineup_user}/releases_${index}
 		done
 		[ -s /tmp/wineup/tmpreleases ] && {
@@ -143,16 +151,17 @@ case $1 in
 		} || {
 			printf '%s\n' "Nada a fazer."
 		}
-		
-#		if [ "$1" == "-ud" ]||[ "$1" == "-du" ];then
-#			for autoupdate in `cat ${dir_wineup_user}/autoupdate | awk -F ' ' '{print $2}'`;do
-#				for new_url in `cat /tmp/wineup/new_releases_${index} | grep $autoupdate`;do
-#					download_build up $new_url
-#				done
-#			done
-#		fi
+		# Responsavel pelo download automatico
+		if [ "$1" == "-ud" ]||[ "$1" == "-du" ];then
+			for autoupdate in `cat ${dir_wineup_user}/autoupdate | awk -F '_' '{print $2}'`;do
+				for new_url in `cat /tmp/wineup/tmpreleases | grep -oE ".*${autoupdate}.* "`;do
+					# chama a função responsavel pelo download
+					download_build $new_url
+				done
+			done
+		fi
 	;;
 	-h|--help|*)
-			echo 1
+		echo 1
 	;;
 esac
