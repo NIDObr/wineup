@@ -112,10 +112,10 @@ case $1 in
 		# Ativa o update automatico para a build escolhida
 		select build_select in `cat ${dir_wineup_user}/releases | awk -F " " '{print $1}'` Sair;do
 			[[ "$build_select" == "Sair" ]] && exit 0
-			[ -s "$build_select" ] && {
+			if `printf "$build_select" | grep -Eq "[0-9]*"`;then
 				printf '%s\n' "Adicionando \"${build_select}\""
 				printf "`cat ${dir_wineup_user}/releases | grep $build_select`\n" >> ${dir_wineup_user}/autoupdate
-			}
+			fi
 		done
 	;;
 	-d|"--download")
