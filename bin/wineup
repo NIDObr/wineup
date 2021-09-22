@@ -96,7 +96,7 @@ case $1 in
 				release_date=`curl -s "${mirrors_urls[ ${index} ]}/tag/${tag_version}" | grep -Eo "[0-9]{4}\-[0-9]{2}\-[0-9]{2}"`
 				# Separa wine e proton, adiciona a entrada na lista de versões e formata para exibir na tela
 				if `printf "${index}" | grep -qi "wine"`;then
-					if `printf "${release}" | awk -F '/' '{print $9}' | grep -qi "wine"`;then
+					if `printf "${release}" | awk -F '/' '{print $9}' | grep -Eqi "(wine|lutris)"`;then
 						printf "${release} ${release_date}\n" >> ${dir_wineup_user}/releases_${index}
 						printf '%s\n' "${release} ${release_date}" | awk -F '/' '{print "* "$5": "$8" "$9}'
 					fi
@@ -149,7 +149,7 @@ case $1 in
 				tag_version=`printf "${release}" | awk -F '/' '{print $8}'`
 				release_date=`curl -s "${mirrors_urls[ ${index} ]}/tag/${tag_version}" | grep -Eo "[0-9]{4}\-[0-9]{2}\-[0-9]{2}"`
 				if `printf "${index}" | grep -qi "wine"`;then
-					if `printf "${release}" | awk -F '/' '{print $9}' | grep -qi "wine"`;then
+					if `printf "${release}" | awk -F '/' '{print $9}' | grep -Eqi "(wine|lutris)"`;then
 						printf "${release} ${release_date}\n" >> /tmp/wineup/tmpreleases_${index}
 					fi
 				else
