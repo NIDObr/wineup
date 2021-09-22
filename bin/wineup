@@ -4,12 +4,16 @@
 # Autor: NidoBr
 # Mais: < https://github.com/NIDObr >
 # Email: coqecoisa@gmail.com
-# Versão: 0.4-beta 21/09/2021
+# Versão: 0.5-beta 22/09/2021
 # Sobre: Baixa e atualiza versões do WINE e Proton
 # License: BSD-3-Clause License
 #------------------------------------------------------------------
 
 #---------------------------changelog: ----------------------------
+# Versão: 0.5-beta 22/09/2021
+#	- Adicionado HELP
+#	- Corrigido bug que não mostrava algumas versções especificas, como as wine-ge 6-16
+#
 # Versão: 0.4-beta 21/09/2021
 #	- Adicionada opções longas
 #	- Download automatico funcionando
@@ -27,6 +31,18 @@ declare -A mirrors_urls
 # Carrega as configuraões
 source /etc/wineup/wineup_cfg
 source /etc/wineup/wineup_mirrors
+
+help="
+Uso: $(basename "$0") [ opção ]
+
+Opções:
+ -c, --create		Atualiza e cria as listas com as versões
+ -d, --download		Baixa uma versão de sua escolha
+ -u, --update		Procura atualizações
+ -ud, -du		Procura atualizações e baixa
+ -h, --help		Exibe esta ajuda e sai
+ 
+"
 
 #----------------------------Funçoes-------------------------------
 
@@ -96,10 +112,11 @@ case $1 in
 		# Ativa o update automatico para a build escolhida
 		select build_select in `cat ${dir_wineup_user}/releases | awk -F " " '{print $1}'` Sair;do
 			[[ "$build_select" == "Sair" ]] && exit 0
-			printf '%s\n' "Adicionando \"${build_select}\""
-			printf "`cat ${dir_wineup_user}/releases | grep $build_select`\n" >> ${dir_wineup_user}/autoupdate
+			[ -s "$build_select" ] && {
+				printf '%s\n' "Adicionando \"${build_select}\""
+				printf "`cat ${dir_wineup_user}/releases | grep $build_select`\n" >> ${dir_wineup_user}/autoupdate
+			}
 		done
-
 	;;
 	-d|"--download")
 		# Baixa uma verção especifica das listas geradas anteriormente
@@ -162,6 +179,6 @@ case $1 in
 		fi
 	;;
 	-h|--help|*)
-		echo 1
+		printf "${help}"
 	;;
 esac
