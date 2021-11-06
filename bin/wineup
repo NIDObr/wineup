@@ -14,6 +14,7 @@
 # Versão: 0.6-beta 06/11/2021
 #	- Totalmente reformulado, dando prioridade a GUI e facilidade de uso.
 #	- wget trocado pelo aria2c, possibilitando downloads paralelos com multiplas conexões
+#	- Correçaõ de bugs
 #
 # Versão: 0.5-beta 22/09/2021
 #	- Adicionado HELP
@@ -80,10 +81,10 @@ update_db(){
 	# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
 	index=$(cat /etc/wineup/wineup_mirrors | grep -Eio "( ${wine_type}[a-z]* )")
 	count=2
-	release_list=$(lynx --dump "${mirrors_urls[ ${index} ]}" | grep -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)")
+	release_list=$(lynx --dump "${mirrors_urls[${index}]}" | grep -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)")
+	# Procura por multiplas paginas no GitHub
 	while true;do
-
-			next_page=$(lynx --dump "${mirrors_urls[${index}]}" | grep -m 1 -Eo "https://.*\?page\=${count}.*")
+		next_page=$(lynx --dump "${mirrors_urls[${index}]}" | grep -m 1 -Eo "https://.*\?page\=${count}.*")
 		$(lynx --dump "${next_page}" | grep -q -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)") && {
 			release_list=$(printf "${release_list}\n" ; lynx --dump "${next_page}" | grep -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)")
 		} || {
@@ -91,8 +92,8 @@ update_db(){
 		}
 		((count++))
 	done
+	# Separa wine e proton, adiciona a entrada na lista de versões e formata para exibir na tela
 	for release in ${release_list};do
-		# Separa wine e proton, adiciona a entrada na lista de versões e formata para exibir na tela
 		case "${wine_type}" in
 			WineGE|WineLutris|WineTKG)
 				if `printf "${release}" | awk -F '/' '{print $9}' | grep -Eqi "(wine|lutris)"`;then
@@ -106,6 +107,8 @@ update_db(){
 			;;
 		esac
 	done
+	# Gera a lista com urls
+	printf "${release_list}" >> "/tmp/wineup/url_release_list"
 }
 
 #------------------------------------------------------------------
@@ -114,10 +117,11 @@ case $1 in
 	--upgrade) update_db upgrade;;
 	-a|--autoupdate);;
 	-d|--download)
-
+		# recria os diretorios temporarios
 		[ -e "/tmp/wineup" ] && rm -rf "/tmp/wineup" ; mkdir "/tmp/wineup" || mkdir "/tmp/wineup"
-
+		# Obtem a lista de versões disponiveins
 		update_db
+		# Selecionar uma ou mais versões para download
 		selec_list=$(zenity --title="${wineup_version}" --list --multiple --checklist \
 			--width=450 \
 			--height=600 \
@@ -128,10 +132,10 @@ case $1 in
 			$(for i in `cat "/tmp/wineup/release_list"`;do printf "0 \n${i} \n";done)
 		)
 		[ -z "$selec_list" ] && exit 0
+		# Obtem as URLs e prepara para o download
 		for url_get in $selec_list ;do
-			grep "$url_get" /tmp/wineup/release_list >> "/tmp/wineup/dowload_list"
+			grep "$url_get" /tmp/wineup/url_release_list >> "/tmp/wineup/dowload_list"
 		done
-
 		download_file
 	;;
 	-h|--help|*)printf "${help}";;
