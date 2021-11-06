@@ -4,12 +4,17 @@
 # Autor: NidoBr
 # Mais: < https://github.com/NIDObr >
 # Email: coqecoisa@gmail.com
-# Versão: 0.5-beta 22/09/2021
+# Versão: 0.6-beta 06/11/2021
 # Sobre: Baixa e atualiza versões do WINE e Proton
 # License: BSD-3-Clause License
 #------------------------------------------------------------------
 
 #---------------------------changelog: ----------------------------
+#
+# Versão: 0.6-beta 06/11/2021
+#	- Totalmente reformulado, dando prioridade a GUI e facilidade de uso.
+#	- wget trocado pelo aria2c, possibilitando downloads paralelos com multiplas conexões
+#
 # Versão: 0.5-beta 22/09/2021
 #	- Adicionado HELP
 #	- Corrigido bug que não mostrava algumas versções especificas, como as wine-ge 6-16
@@ -26,159 +31,111 @@
 #
 #----------------------------Vars----------------------------------
 
+# Cria uma array associativa contendo as mirros
 declare -A mirrors_urls
+wineup_version="wineup-0.6-beta"
+help="
+Uso: $(basename "$0") [ opção ]
+
+Opções:
+ --upgrade		Procura atualizações e baixa
+ --autoupdate		Adiciona builds para baixar automaticamente
+ -d, --download		Baixa uma ou mais versẽs de sua escolha
+ -h, --help		Exibe esta ajuda e sai
+
+"
 
 # Carrega as configuraões
 source /etc/wineup/wineup_cfg
 source /etc/wineup/wineup_mirrors
 
-help="
-Uso: $(basename "$0") [ opção ]
-
-Opções:
- -c, --create		Atualiza e cria as listas com as versões
- -d, --download		Baixa uma versão de sua escolha
- -u, --update		Procura atualizações
- -ud, -du		Procura atualizações e baixa
- -h, --help		Exibe esta ajuda e sai
- 
-"
-
 #----------------------------Funçoes-------------------------------
 
 # Responsavel por baixar os arquivos solicitados
-download_build(){
-	printf "\nIniciando Downloads\n"
-	# Verifica se os diretorios estão criados
-	[ -e "$dir_downloads" ] || mkdir "$dir_downloads"
-	[ -e /tmp/wineup ] || mkdir /tmp/wineup
-	# Localiza a url do arquivo solicitado pelas outras funçoẽs
-	if `printf $1 | grep -q 'https://'`;then
-		url_get="${1}"
-	else
-		url_get=`eval cat ${dir_wineup_user}/releases_* | grep -Eo ".*${1}.*${2}.*${3}.* "`
-	fi
-	printf '%s\n' "Baixando de: \"${url_get}\""
-	# Baixa o arquivo para uma pasta temporaria para extrailo posteriormente
-	wget -q --show-progress "${url_get}" -O /tmp/wineup/`basename "${url_get}"` && {
-		printf "\n\"`basename ${url_get}`\" baixado com sucesso\n"
-		printf "Extraindo arquivos...\n\n"
-		# Escolhe o diretorio apropriado (wine ou proton) e extrai o arquivo
-		`basename ${url_get} | grep -qi "proton"` && {
-			tar xaf "/tmp/wineup/`basename ${url_get}`" -C "${dir_steamproton}" && printf "Extração completa!\n\n"
-		} || {
-			tar xaf "/tmp/wineup/`basename ${url_get}`" -C "${dir_downloads}" && printf "Extração completa!\n\n"
-		}
+download_file(){
+	[ -e "${dir_downloads}" ] || mkdir "${dir_downloads}"
+	[ -e "/tmp/wineup/downloads" ] || mkdir -p "/tmp/wineup/downloads"
+	notify-send "${wineup_version}" "Baixando, aguarde."
+	# Baixa as urls soliciadas em  e extrai para as determinadas pastas.
+	aria2c --summary-interval=0 --console-log-level=error -x5 -j3 -i "/tmp/wineup/dowload_list" -d "/tmp/wineup/downloads" && {
+		for file_extract in /tmp/wineup/downloads/* ;do
+			$(basename "${file_extract}" | grep -qi "proton") && {
+				tar -xaf "${file_extract}" -C "${dir_steamproton}"
+			} || {
+				tar -xaf "${file_extract}" -C "${dir_downloads}"
+			}
+		done
+		notify-send "${wineup_version}" "Downloads concluidos com sucesso!"
 	}
 }
 
-#----------------------------Main-----------------------------------
+# Procura atualizações
+update_db(){
+	wine_type=$(zenity --title="${wineup_version}" \
+		--text="Escolha qual você quer baixar:" \
+		--forms --add-combo="Versão:" \
+		--combo-values="WineGE|WineLutris|WineTKG|ProtonGE|ProtonTKG" )
+	[ -z "$wine_type" -o "${wine_type}" = " " ] && exit 0
+	notify-send "${wineup_version}" "Obtendo lista de versões, aguarde..."
+	# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
+	index=$(cat /etc/wineup/wineup_mirrors | grep -Eio "( ${wine_type}[a-z]* )")
+	count=2
+	release_list=$(lynx --dump "${mirrors_urls[ ${index} ]}" | grep -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)")
+	while true;do
 
-# Parser
-case $1 in
-	-c|"--create")
-		# Verifica se o diretorio exixte
-		[ -e ${dir_wineup_user} ] || {
-			mkdir ${dir_wineup_user}
-		} && {
-			# Recria
-			rm -rf ${dir_wineup_user}
-			mkdir ${dir_wineup_user}
-		}
-		# Gera as listas de versões disponiveins
-		for index in `cat /etc/wineup/wineup_mirrors | grep -Eo '( (wine|proton)[a-z]* )'`;do
-			printf '%s\n' "Atualizando de: "${mirrors_urls[ ${index} ]}""
-			printf "${mirrors_urls[ ${index} ]}" | awk -F '/' '{print $4"_"$5}' >> ${dir_wineup_user}/releases
-			# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
-			for release in `lynx --dump "${mirrors_urls[ ${index} ]}" | grep -Eo "https\:\/\/.*releases.*\.tar\.(gz|xz|zst)"`;do
-				tag_version=`printf "${release}" | awk -F '/' '{print $8}'`
-				# Data que o arquivo foi upado no github
-				release_date=`curl -s "${mirrors_urls[ ${index} ]}/tag/${tag_version}" | grep -Eo "[0-9]{4}\-[0-9]{2}\-[0-9]{2}" | awk -F '-' '{print $3"-"$2"-"$1}'`
-				# Separa wine e proton, adiciona a entrada na lista de versões e formata para exibir na tela
-				if `printf "${index}" | grep -qi "wine"`;then
-					if `printf "${release}" | awk -F '/' '{print $9}' | grep -Eqi "(wine|lutris)"`;then
-						printf "${release} ${release_date}\n" >> ${dir_wineup_user}/releases_${index}
-						printf '%s\n' "${release} ${release_date}" | awk -F '/' '{print "* "$5": "$8" "$9}'
-					fi
-				else
-					if `printf "${release}" | awk -F '/' '{print $9}' | grep -qi "proton"`;then
-						printf "${release} ${release_date}\n" >> ${dir_wineup_user}/releases_${index}
-						printf '%s\n' "${release} ${release_date}" | awk -F '/' '{print "* "$5": "$8" "$9}'
-					fi
-				fi
-			done
-		done
-		printf "Pronto\nDeseja ativar o Update automatico para alguma versão?  [ctrl+c para sair]\n\n"
-		# Ativa o update automatico para a build escolhida
-		select build_select in `cat ${dir_wineup_user}/releases | awk -F " " '{print $1}'` Sair;do
-			[[ "$build_select" == "Sair" ]] && exit 0
-			if `printf "$build_select" | grep -Eq "[0-9]*"`;then
-				printf '%s\n' "Adicionando \"${build_select}\""
-				printf "`cat ${dir_wineup_user}/releases | grep $build_select`\n" >> ${dir_wineup_user}/autoupdate
-			fi
-		done
-	;;
-	-d|"--download")
-		# Baixa uma verção especifica das listas geradas anteriormente
-		[[ -e /tmp/wineup ]] || mkdir /tmp/wineup
-		printf "Listar versões do WINE ou Proton?  [ctrl+c para sair]\n"
-		select op_tipo in "wine" "proton" "Sair";do
-			case $op_tipo in
-				wine|proton)
-					printf "Listando as versões disponiveins: \n\n"
-					printf "Deseja baixar alguma versão?  [ctrl+c para sair]\n"
-					select build_select in `eval cat ${dir_wineup_user}/releases_${op_tipo}* | awk -F '/' '{print $5"__"$8"__"$9}' | awk -F ' ' '{print $1"__"$2}'`;do
-						[ -z "${build_select}" ] && continue
-						cat ${dir_wineup_user}/releases_* | grep $build_select > /tmp/wineup/${tmprefix}_select_version.tmp
-						printf $build_select | awk -F '__' '{print $1" "$2" "$3}'
-						download_build `printf $build_select | awk -F '__' '{print $1" "$2" "$3}'`
-					done
-				;;
-				Sair) exit 0;;
-				*) continue;;
-			esac
-		done
-	;;
-	-u|"-ud"|"-du"|"--update")
-		# Procura por atualizações, comparando as listas locais com novas (diff e Web-Scraping)
-		rm -rf /tmp/wineup
-		[ -e /tmp/wineup ] || mkdir /tmp/wineup
-		printf '%s\n' "Atualizando..."
-		for index in `cat /etc/wineup/wineup_mirrors | grep -Eo '( (wine|proton)[a-z]* )'`;do
-			for release in `lynx --dump "${mirrors_urls[ ${index} ]}" | grep -Eo "https\:\/\/.*releases.*\.tar\.(gz|xz|zst)"`;do
-				tag_version=`printf "${release}" | awk -F '/' '{print $8}'`
-				release_date=`curl -s "${mirrors_urls[ ${index} ]}/tag/${tag_version}" | grep -Eo "[0-9]{4}\-[0-9]{2}\-[0-9]{2}" | awk -F '-' '{print $3"-"$2"-"$1}'`
-				if `printf "${index}" | grep -qi "wine"`;then
-					if `printf "${release}" | awk -F '/' '{print $9}' | grep -Eqi "(wine|lutris)"`;then
-						printf "${release} ${release_date}\n" >> /tmp/wineup/tmpreleases_${index}
-					fi
-				else
-					if `printf "${release}" | awk -F '/' '{print $9}' | grep -qi "proton"`;then
-						printf "${release} ${release_date}\n" >> /tmp/wineup/tmpreleases_${index}
-					fi
-				fi
-			done
-			# Compara e sobrescreve as listas, as novas versões ficarão no arquivo "/tmp/wineup/tmpreleases"
-			diff "/tmp/wineup/tmpreleases_${index}" "${dir_wineup_user}/releases_${index}" | grep -Eo "https.* [0-9\-]*" >> /tmp/wineup/tmpreleases
-			mv -f /tmp/wineup/tmpreleases_${index} ${dir_wineup_user}/releases_${index}
-		done
-		[ -s /tmp/wineup/tmpreleases ] && {
-			printf '%s\n' "Novas versões encontradas: "
-			cat /tmp/wineup/tmpreleases | awk -F '/' '{print "* "$5": "$8" "$9}'
+			next_page=$(lynx --dump "${mirrors_urls[${index}]}" | grep -m 1 -Eo "https://.*\?page\=${count}.*")
+		$(lynx --dump "${next_page}" | grep -q -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)") && {
+			release_list=$(printf "${release_list}\n" ; lynx --dump "${next_page}" | grep -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)")
 		} || {
-			printf '%s\n' "Nada a fazer."
+			break
 		}
-		# Responsavel pelo download automatico
-		if [ "$1" == "-ud" ]||[ "$1" == "-du" ];then
-			for autoupdate in `cat ${dir_wineup_user}/autoupdate | awk -F '_' '{print $2}'`;do
-				for new_url in `cat /tmp/wineup/tmpreleases | grep -oE ".*${autoupdate}.* "`;do
-					# chama a função responsavel pelo download
-					download_build $new_url
-				done
-			done
-		fi
+		((count++))
+	done
+	for release in ${release_list};do
+		# Separa wine e proton, adiciona a entrada na lista de versões e formata para exibir na tela
+		case "${wine_type}" in
+			WineGE|WineLutris|WineTKG)
+				if `printf "${release}" | awk -F '/' '{print $9}' | grep -Eqi "(wine|lutris)"`;then
+					printf '%s\n' "${release}" | awk -F '/' '{print $9}' >> "/tmp/wineup/release_list"
+				fi
+			;;
+			ProtonGE|ProtonTKG)
+				if `printf "${release}" | awk -F '/' '{print $9}' | grep -qi "proton"`;then
+					printf '%s\n' "${release}" | awk -F '/' '{print $9}' >> "/tmp/wineup/release_list"
+				fi
+			;;
+		esac
+	done
+}
+
+#------------------------------------------------------------------
+
+case $1 in
+	--upgrade) update_db upgrade;;
+	-a|--autoupdate);;
+	-d|--download)
+
+		[ -e "/tmp/wineup" ] && rm -rf "/tmp/wineup" ; mkdir "/tmp/wineup" || mkdir "/tmp/wineup"
+
+		update_db
+		selec_list=$(zenity --title="${wineup_version}" --list --multiple --checklist \
+			--width=450 \
+			--height=600 \
+			--text="Versões disponiveins:" \
+			--separator=" " \
+			--column="" \
+			--column="Versão" \
+			$(for i in `cat "/tmp/wineup/release_list"`;do printf "0 \n${i} \n";done)
+		)
+		[ -z "$selec_list" ] && exit 0
+		for url_get in $selec_list ;do
+			grep "$url_get" /tmp/wineup/release_list >> "/tmp/wineup/dowload_list"
+		done
+
+		download_file
 	;;
-	-h|--help|*)
-		printf "${help}"
-	;;
+	-h|--help|*)printf "${help}";;
 esac
+
+
+
