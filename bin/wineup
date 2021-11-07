@@ -59,10 +59,19 @@ download_file(){
 	[ -e "/tmp/wineup/downloads" ] || mkdir -p "/tmp/wineup/downloads"
 	[ -e "${HOME}/.steam/steam/compatibilitytools.d" ] || mkdir -p "${HOME}/.steam/steam/compatibilitytools.d"
 	notify-send "${wineup_version}" "Baixando, aguarde."
-	#$(zenity --class="${wineup_version}" --title="${wineup_version}" --text="Baixando, guarde..." --progress --pulsate --auto-kill --no-cancel) &
-	#export pid_download_z=$(pidof zenity | awk -F ' ' '{print $1}')
 	# Baixa as urls soliciadas em e extrai para as determinadas pastas.
-	aria2c --summary-interval=0 --console-log-level=error -x"${aria_multi}" -j"${aria_paralel}" -i "/tmp/wineup/dowload_list" -d "/tmp/wineup/downloads" && {
+	(
+		exec {fd}>&1
+		stdbuf -oL aria2c --summary-interval=0 --console-log-level=error -x"${aria_multi}" -j"${aria_paralel}" -i "/tmp/wineup/dowload_list" -d "/tmp/wineup/downloads" |
+		stdbuf -oL tee /dev/fd/$fd |
+		stdbuf -oL grep -Eo '[0-9]*%' |
+		zenity --class="${wineup_version}" --title="${wineup_version}" \
+			--text="Baixando arquivos, aguarde..." \
+			--progress --percentage=0 \
+			--width=450 --auto-kill --auto-close
+	) && {
+		$(zenity --class="${wineup_version}" --title="${wineup_version}" --text="Extraindo arquivos, aguarde..." --progress --pulsate --auto-kill --no-cancel) &
+		pid_extract_z=$(pidof zenity | awk -F ' ' '{print $1}')
 		for file_extract in /tmp/wineup/downloads/* ;do
 			$(basename "${file_extract}" | grep -qi "proton") && {
 				tar -xaf "${file_extract}" -C "${dir_steamproton}"
@@ -71,12 +80,12 @@ download_file(){
 			}
 		done
 	} && {
-		#kill ${pid_download_z}
+		kill ${pid_extract_z}
 		notify-send "${wineup_version}" "Downloads concluidos com sucesso!"
 		update_db
 	}
 }
-#--class="wineup"
+
 # Procura atualizações
 update_db(){
 	wine_type=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
