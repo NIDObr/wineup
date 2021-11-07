@@ -11,14 +11,17 @@
 
 #---------------------------changelog: ----------------------------
 #
+# Versão: 0.6.1-beta 07/11/2021
+#	- Adicionado parametros de configuração para o aria2c
+#	- Configurado "--class" para zenity
+#
 # Versão: 0.6-beta 06/11/2021
 #	- Totalmente reformulado, dando prioridade a GUI e facilidade de uso.
 #	- wget trocado pelo aria2c, possibilitando downloads paralelos com multiplas conexões
-#	- Correçaõ de bugs
 #
 # Versão: 0.5-beta 22/09/2021
 #	- Adicionado HELP
-#	- Corrigido bug que não mostrava algumas versções especificas, como as wine-ge 6-16
+#	- Corrigido bug que não mostrava algumas versões especificas, como as wine-ge 6-16
 #
 # Versão: 0.4-beta 21/09/2021
 #	- Adicionada opções longas
@@ -39,8 +42,6 @@ help="
 Uso: $(basename "$0") [ opção ]
 
 Opções:
- --upgrade		Procura atualizações e baixa
- --autoupdate		Adiciona builds para baixar automaticamente
  -d, --download		Baixa uma ou mais versẽs de sua escolha
  -h, --help		Exibe esta ajuda e sai
 
@@ -56,9 +57,12 @@ source /etc/wineup/wineup_mirrors
 download_file(){
 	[ -e "${dir_downloads}" ] || mkdir "${dir_downloads}"
 	[ -e "/tmp/wineup/downloads" ] || mkdir -p "/tmp/wineup/downloads"
+	[ -e "${HOME}/.steam/steam/compatibilitytools.d" ] || mkdir -p "${HOME}/.steam/steam/compatibilitytools.d"
 	notify-send "${wineup_version}" "Baixando, aguarde."
-	# Baixa as urls soliciadas em  e extrai para as determinadas pastas.
-	aria2c --summary-interval=0 --console-log-level=error -x5 -j3 -i "/tmp/wineup/dowload_list" -d "/tmp/wineup/downloads" && {
+	#$(zenity --class="${wineup_version}" --title="${wineup_version}" --text="Baixando, guarde..." --progress --pulsate --auto-kill --no-cancel) &
+	#export pid_download_z=$(pidof zenity | awk -F ' ' '{print $1}')
+	# Baixa as urls soliciadas em e extrai para as determinadas pastas.
+	aria2c --summary-interval=0 --console-log-level=error -x"${aria_multi}" -j"${aria_paralel}" -i "/tmp/wineup/dowload_list" -d "/tmp/wineup/downloads" && {
 		for file_extract in /tmp/wineup/downloads/* ;do
 			$(basename "${file_extract}" | grep -qi "proton") && {
 				tar -xaf "${file_extract}" -C "${dir_steamproton}"
@@ -66,18 +70,22 @@ download_file(){
 				tar -xaf "${file_extract}" -C "${dir_downloads}"
 			}
 		done
+	} && {
+		#kill ${pid_download_z}
 		notify-send "${wineup_version}" "Downloads concluidos com sucesso!"
+		update_db
 	}
 }
-
+#--class="wineup"
 # Procura atualizações
 update_db(){
-	wine_type=$(zenity --title="${wineup_version}" \
+	wine_type=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
 		--text="Escolha qual você quer baixar:" \
 		--forms --add-combo="Versão:" \
 		--combo-values="WineGE|WineLutris|WineTKG|ProtonGE|ProtonTKG" )
 	[ -z "$wine_type" -o "${wine_type}" = " " ] && exit 0
-	notify-send "${wineup_version}" "Obtendo lista de versões, aguarde..."
+	$(zenity --class="${wineup_version}" --title="${wineup_version}" --text="Atualizando listas, aguarde..." --progress --pulsate --auto-kill --no-cancel) &
+	export pid_update_z=$(pidof zenity | awk -F ' ' '{print $1}')
 	# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
 	index=$(cat /etc/wineup/wineup_mirrors | grep -Eio "( ${wine_type}[a-z]* )")
 	count=2
@@ -114,15 +122,14 @@ update_db(){
 #------------------------------------------------------------------
 
 case $1 in
-	--upgrade) update_db upgrade;;
-	-a|--autoupdate);;
 	-d|--download)
 		# recria os diretorios temporarios
 		[ -e "/tmp/wineup" ] && rm -rf "/tmp/wineup" ; mkdir "/tmp/wineup" || mkdir "/tmp/wineup"
 		# Obtem a lista de versões disponiveins
 		update_db
+		kill ${pid_update_z}
 		# Selecionar uma ou mais versões para download
-		selec_list=$(zenity --title="${wineup_version}" --list --multiple --checklist \
+		selec_list=$(zenity --class="${wineup_version}" --title="${wineup_version}" --list --multiple --checklist \
 			--width=450 \
 			--height=600 \
 			--text="Versões disponiveins:" \
