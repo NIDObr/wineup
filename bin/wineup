@@ -4,7 +4,7 @@
 # Autor: NidoBr
 # Mais: < https://github.com/NIDObr >
 # Email: coqecoisa@gmail.com
-# Versão: 0.6-beta 06/11/2021
+# Versão: 0.7-beta 09/11/2021
 # Sobre: Baixa e atualiza versões do WINE e Proton
 # License: BSD-3-Clause License
 #------------------------------------------------------------------
@@ -58,32 +58,26 @@ download_file(){
 	[ -e "${dir_downloads}" ] || mkdir "${dir_downloads}"
 	[ -e "/tmp/wineup/downloads" ] || mkdir -p "/tmp/wineup/downloads"
 	[ -e "${HOME}/.steam/steam/compatibilitytools.d" ] || mkdir -p "${HOME}/.steam/steam/compatibilitytools.d"
-	notify-send "${wineup_version}" "Baixando, aguarde."
 	# Baixa as urls soliciadas em e extrai para as determinadas pastas.
 	(
-		exec {fd}>&1
-		stdbuf -oL aria2c --summary-interval=0 --console-log-level=error -x"${aria_multi}" -j"${aria_paralel}" -i "/tmp/wineup/dowload_list" -d "/tmp/wineup/downloads" |
-		stdbuf -oL tee /dev/fd/$fd |
-		stdbuf -oL grep -Eo '[0-9]*%' |
-		zenity --class="${wineup_version}" --title="${wineup_version}" \
-			--text="Baixando arquivos, aguarde..." \
-			--progress --percentage=0 \
-			--width=450 --auto-kill --auto-close
-	) && {
-		$(zenity --class="${wineup_version}" --title="${wineup_version}" --text="Extraindo arquivos, aguarde..." --progress --pulsate --auto-kill --no-cancel) &
-		pid_extract_z=$(pidof zenity | awk -F ' ' '{print $1}')
-		for file_extract in /tmp/wineup/downloads/* ;do
-			$(basename "${file_extract}" | grep -qi "proton") && {
-				tar -xaf "${file_extract}" -C "${dir_steamproton}"
-			} || {
-				tar -xaf "${file_extract}" -C "${dir_downloads}"
-			}
-		done
-	} && {
-		kill ${pid_extract_z}
-		notify-send "${wineup_version}" "Downloads concluidos com sucesso!"
+		echo '# Baixando arquivos, aguarde...'
+		aria2c --summary-interval=0 --console-log-level=error -x"${aria_multi}" -j"${aria_paralel}" -i "/tmp/wineup/dowload_list" -d "/tmp/wineup/downloads" && {
+			echo '# Extraindo arquivos...'
+			for file_extract in /tmp/wineup/downloads/* ;do
+				$(basename "${file_extract}" | grep -qi "proton") && {
+					tar -xaf "${file_extract}" -C "${dir_steamproton}"
+				} || {
+					tar -xaf "${file_extract}" -C "${dir_downloads}"
+				}
+			done
+			notify-send "${wineup_version}" "Downloads concluidos com sucesso!"
+		}
+	) |
+	zenity --class="${wineup_version}" --title="${wineup_version}" \
+		--text="Iniciando downloads" \
+		--progress --pulsate --width=450 \
+		--auto-kill --no-cancel
 		update_db
-	}
 }
 
 # Procura atualizações
@@ -156,6 +150,3 @@ case $1 in
 	;;
 	-h|--help|*)printf "${help}";;
 esac
-
-
-
