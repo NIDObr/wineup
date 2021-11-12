@@ -5,10 +5,10 @@ Baixa e atualiza versões do WINE e PROTON, com interface em Zenity
   * WINE-Lutris
   * WINE-TKG
   * Proton-GE
-  * Proton-TKG 
+  * Proton-TKG
+  * Luxtorpeda-DEV
 
 ## Modo de Uso:
 ### Para baixar uma versão especifica use a opção "-d"
 $ wineup -d
 
-### As demais funções serão adicionadas em breve
