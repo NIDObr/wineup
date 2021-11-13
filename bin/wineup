@@ -4,12 +4,14 @@
 # Autor: NidoBr
 # Mais: < https://github.com/NIDObr >
 # Email: coqecoisa@gmail.com
-# Versão: 0.7-beta 12/11/2021
+# Versão: 0.7.1-beta 13/11/2021
 # Sobre: Baixa e atualiza versões do WINE e Proton
 # License: BSD-3-Clause License
 #------------------------------------------------------------------
 
 #---------------------------changelog: ----------------------------
+#
+# Versão: 0.7.1-beta 13	/11/2021
 #
 # Versão: 0.7-beta 12/11/2021
 #	- Adicionado suporte ao Luxtorpeda (DEV)
@@ -90,6 +92,8 @@ download_file(){
 
 # Procura atualizações
 update_db(){
+	rm -rf "/tmp/wineup"
+	mkdir "/tmp/wineup"
 	tool_type=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
 		--text="Escolha qual ferramenta você quer baixar:" \
 		--forms --width=400 --add-combo="Versão:" \
@@ -112,35 +116,27 @@ update_db(){
 		((count++))
 	done
 	# Separa wine e proton, adiciona a entrada na lista de versões e formata para exibir na tela
-	for release in "${release_list}";do
+	for release in ${release_list};do
 		case "${tool_type}" in
 			WineGE|WineLutris|WineTKG)
 				if `printf "${release}" | awk -F '/' '{print $9}' | grep -Eqi "(wine|lutris)"`;then
 					printf '%s\n' "${release}" | awk -F '/' '{print $9}' >> "/tmp/wineup/release_list"
 				fi
 			;;
-			ProtonGE|ProtonTKG)
-				if `printf "${release}" | awk -F '/' '{print $9}' | grep -qi "proton"`;then
+			ProtonGE|ProtonTKG|LuxtorpedaDEV)
+				if `printf "${release}" | awk -F '/' '{print $9}' | grep -Eqi "(proton|luxtorpeda)"`;then
 					printf '%s\n' "${release}" | awk -F '/' '{print $9}' >> "/tmp/wineup/release_list"
 				fi
-			;;
-			*)
-				printf '%s\n' "${release}" | awk -F '/' '{print $9}' >> "/tmp/wineup/release_list"
 			;;
 		esac
 	done
 	# Gera a lista com urls
 	printf "${release_list}" >> "/tmp/wineup/url_release_list"
+	download_db
 }
 
-#------------------------------------------------------------------
-
-case $1 in
-	-d|--download)
-		# recria os diretorios temporarios
-		[ -e "/tmp/wineup" ] && rm -rf "/tmp/wineup" ; mkdir "/tmp/wineup" || mkdir "/tmp/wineup"
+download_db(){
 		# Obtem a lista de versões disponiveins
-		update_db
 		kill "${pid_update_z}"
 		# Selecionar uma ou mais versões para download
 		selec_list=$(zenity --class="${wineup_version}" --title="${wineup_version}" --list --multiple --checklist \
@@ -152,13 +148,20 @@ case $1 in
 			--column="Versão" \
 			$(for i in `cat "/tmp/wineup/release_list"`;do printf "0 \n${i} \n";done)
 		)
-		[ -z "$selec_list" ] && exit 0
+		[ -z "$selec_list" ] && update_db
 		# Obtem as URLs e prepara para o download
 		for url_get in $selec_list;do
 			grep "$url_get" /tmp/wineup/url_release_list >> "/tmp/wineup/dowload_list"
-			grep "$url_get" /tmp/wineup/url_release_list
 		done
 		download_file
+}
+
+#------------------------------------------------------------------
+
+case $1 in
+	-d|--download)
+		# recria os diretorios temporarios
+		update_db
 	;;
 	-h|--help|*)printf "${help}";;
 esac
