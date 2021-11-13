@@ -95,7 +95,7 @@ update_db(){
 		--forms --width=400 --add-combo="Versão:" \
 		--combo-values="WineGE|WineLutris|WineTKG|ProtonGE|ProtonTKG|LuxtorpedaDEV" )
 	[ -z "$tool_type" -o "${tool_type}" = " " ] && exit 0
-	$(zenity --class="${wineup_version}" --title="${wineup_version}" --text="Atualizando listas, aguarde..." --progress --pulsate --auto-kill --no-cancel) &
+	$(zenity --class="${wineup_version}" --title="${wineup_version}" --text="Atualizando listas, aguarde..." --progress --pulsate --percentage=0 --no-cancel) &
 	export pid_update_z=$(pidof zenity | awk -F ' ' '{print $1}')
 	# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
 	index=$(cat /etc/wineup/wineup_mirrors | grep -Eio "( ${tool_type}[a-z]* )")
