@@ -1,5 +1,5 @@
 # Diretorio padrão download
-dir_downloads="${HOME}/wine builds"
+dir_downloads="${HOME}/WineBuilds"
 
 # Diretorio padão Proton
 dir_steamproton="${HOME}/.steam/steam/compatibilitytools.d"
