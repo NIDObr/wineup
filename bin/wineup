@@ -4,14 +4,17 @@
 # Autor: NidoBr
 # Mais: < https://github.com/NIDObr >
 # Email: coqecoisa@gmail.com
-# Versão: 0.7.1-beta 13/11/2021
+# Versão: 0.8-beta 30/11/2021
 # Sobre: Baixa e atualiza versões do WINE e Proton
 # License: BSD-3-Clause License
 #------------------------------------------------------------------
 
 #---------------------------changelog: ----------------------------
 #
-# Versão: 0.7.1-beta 13	/11/2021
+# Versão: 0.8-beta 30/11/2021
+#	- Adicionada opção para excluir versões instaladas
+#
+# Versão: 0.7.1-beta 13/11/2021
 #
 # Versão: 0.7-beta 12/11/2021
 #	- Adicionado suporte ao Luxtorpeda (DEV)
