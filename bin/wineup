@@ -79,6 +79,7 @@ download_file(){
 					tar -xaf "${file_extract}" -C "${dir_downloads}"
 				fi
 			done
+			echo '# Concluido.'
 			notify-send "${wineup_version}" "Downloads concluidos com sucesso!"
 		}
 	) |
@@ -96,10 +97,12 @@ update_db(){
 	mkdir "/tmp/wineup"
 	tool_type=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
 		--text="Escolha qual ferramenta você quer baixar:" \
+		--extra-button="Gerenciar instalados" \
 		--forms --width=400 --add-combo="Versão:" \
 		--combo-values="WineGE|WineLutris|WineTKG|ProtonGE|ProtonTKG|LuxtorpedaDEV" )
 	[ -z "$tool_type" -o "${tool_type}" = " " ] && exit 0
-	$(zenity --class="${wineup_version}" --title="${wineup_version}" --text="Atualizando listas, aguarde..." --progress --pulsate --percentage=0 --no-cancel) &
+	[ "$tool_type" == "Gerenciar instalados" ] && exclui_db
+	$(zenity --class="${wineup_version}" --title="${wineup_version}" --text="Atualizando listas, aguarde..." --progress --pulsate --no-cancel) &
 	export pid_update_z=$(pidof zenity | awk -F ' ' '{print $1}')
 	# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
 	index=$(cat /etc/wineup/wineup_mirrors | grep -Eio "( ${tool_type}[a-z]* )")
@@ -155,7 +158,24 @@ download_db(){
 		done
 		download_file
 }
-
+exclui_db(){
+	selec_exclui=$(zenity --class="${wineup_version}" --title="${wineup_version}" --list --multiple --checklist \
+			--width=450 \
+			--height=500 \
+			--text="Versões instaladas:" \
+			--separator=" " \
+			--column="" \
+			--column="Versão" \
+			--ok-label=Excluir \
+			$(for i in ${dir_steamproton}/* ${dir_downloads}/* ;do printf "0 \n`basename ${i}` \n";done)
+	)
+	[ -z "${selec_exclui}" ] && update_db
+	for a in ${selec_exclui} ;do
+		find ${dir_steamproton} ${dir_downloads} -iname ${a} -exec rm -rf {} \; &> /dev/null
+	done
+	notify-send "${wineup_version}" "Arquivos excluidos com sucesso!"
+	update_db
+}
 #------------------------------------------------------------------
 
 case $1 in
@@ -165,3 +185,4 @@ case $1 in
 	;;
 	-h|--help|*)printf "${help}";;
 esac
+
