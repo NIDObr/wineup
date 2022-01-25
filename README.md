@@ -15,5 +15,5 @@ Baixa e atualiza versões do WINE e PROTON, com interface em Zenity
  * aria2
 
 ## Modo de Uso:
-$ wineup -d
+$ wineup
 
