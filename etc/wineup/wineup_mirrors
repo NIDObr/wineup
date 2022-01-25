@@ -6,4 +6,5 @@ mirrors_urls=(
 	[ protonge ]="https://github.com/GloriousEggroll/proton-ge-custom/releases"
 	[ protontkg ]="https://github.com/Frogging-Family/wine-tkg-git/releases"
 	[ luxtorpedadev ]="https://github.com/luxtorpeda-dev/luxtorpeda/releases"
+	[ dxvk ]="https://github.com/doitsujin/dxvk/releases"
 )
