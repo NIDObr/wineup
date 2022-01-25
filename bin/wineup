@@ -4,12 +4,18 @@
 # Autor: NidoBr
 # Mais: < https://github.com/NIDObr >
 # Email: coqecoisa@gmail.com
-# Versão: 0.8-beta 30/11/2021
+# Versão: 0.9-beta 25/01/2021
 # Sobre: Baixa e atualiza versões do WINE e Proton
 # License: BSD-3-Clause License
 #------------------------------------------------------------------
 
 #---------------------------changelog: ----------------------------
+#
+# Versão: 0.9-beta 25/01/2021
+#	- Adicionada suporte ao DXVK.
+#	- Adicionada opções para gerenciar WINEPREFIX.
+#	- Adicionada opções para gerenciar DXVK.
+#	- Correções na GUI
 #
 # Versão: 0.8-beta 30/11/2021
 #	- Adicionada opção para excluir versões instaladas
@@ -46,14 +52,15 @@
 
 # Cria uma array associativa contendo as mirros
 declare -A mirrors_urls
-wineup_version="wineup-0.7-beta"
+wineup_version="wineup-0.9-beta"
 help="
 Uso: $(basename "$0") [ opção ]
 
 Opções:
- -d, --download		Baixa uma ou mais versẽs de sua escolha
- -h, --help		Exibe esta ajuda e sai
-
+	-c, --cleancfg		Limpa as configurações do usuario
+	-g, --gui		Inicia a GUI (Padrão)
+	 -h, --help		Exibe esta ajuda e sai
+	-r, --remove		Inicia a janela para remover versões especificas
 "
 # Carrega as configuraões
 source /etc/wineup/wineup_cfg
@@ -68,9 +75,10 @@ download_file(){
 	[ -e "${HOME}/.steam/steam/compatibilitytools.d" ] || mkdir -p "${HOME}/.steam/steam/compatibilitytools.d"
 	# Baixa as urls soliciadas em e extrai para as determinadas pastas.
 	(
-		echo '# Baixando arquivos, aguarde...'
+		printf '# Baixando arquivos, aguarde...\n'
 		aria2c --summary-interval=0 --console-log-level=error -x"${aria_multi}" -j"${aria_paralel}" -i "/tmp/wineup/dowload_list" -d "/tmp/wineup/downloads" && {
-			echo '# Extraindo arquivos...'
+			printf '# Extraindo arquivos...\n'
+			echo $file_extract > teste
 			for file_extract in /tmp/wineup/downloads/* ;do
 				if $(basename "${file_extract}" | grep -qi 'proton');then
 					tar -xaf "${file_extract}" -C "${dir_steamproton}"
@@ -78,18 +86,20 @@ download_file(){
 					torpeda_ver=$(basename "${file_extract}" | grep -Eo '[0-9]{1,}')
 					tar -xaf "${file_extract}" -C "/tmp/wineup/downloads"
 					mv "/tmp/wineup/downloads/luxtorpeda" "${dir_steamproton}/luxtorpeda-${torpeda_ver}"
+				elif $(basename "${file_extract}" | grep -qi 'dxvk');then
+					tar -xaf "${file_extract}" -C "${dir_downloads}"
 				else
 					tar -xaf "${file_extract}" -C "${dir_downloads}"
 				fi
 			done
-			echo '# Concluido.'
+			printf '# Concluido.\n'
 			notify-send "${wineup_version}" "Downloads concluidos com sucesso!"
 		}
 	) |
 	# Mostra o progresso do download e extração
 	zenity --class="${wineup_version}" --title="${wineup_version}" \
 		--text="Iniciando downloads" \
-		--progress --pulsate --width=450 \
+		--progress --pulsate --width=400 \
 		--auto-kill --no-cancel
 	update_db
 }
@@ -98,17 +108,21 @@ download_file(){
 update_db(){
 	rm -rf "/tmp/wineup"
 	mkdir "/tmp/wineup"
-	tool_type=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
-		--text="Escolha qual ferramenta você quer baixar:" \
-		--extra-button="Gerenciar instalados" \
-		--forms --width=400 --add-combo="Versão:" \
-		--combo-values="WineGE|WineLutris|WineTKG|ProtonGE|ProtonTKG|LuxtorpedaDEV" )
+	[ "${1}" == "dxvk" ] && {
+		tool_type="DXVK"
+	} || {
+		tool_type=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
+			--text="Escolha qual ferramenta você quer baixar:" \
+			--extra-button="Gerenciar Wineprefix" \
+			--forms --width=400 --add-combo="Versão:" \
+			--combo-values="WineGE|WineLutris|WineTKG|ProtonGE|ProtonTKG|LuxtorpedaDEV|DXVK" )
+	}
 	[ -z "$tool_type" -o "${tool_type}" = " " ] && exit 0
-	[ "$tool_type" == "Gerenciar instalados" ] && exclui_db
-	$(zenity --class="${wineup_version}" --title="${wineup_version}" --text="Atualizando listas, aguarde..." --progress --pulsate --no-cancel) &
-	export pid_update_z=$(pidof zenity | awk -F ' ' '{print $1}')
+	[ "$tool_type" == "Gerenciar Wineprefix" ] && prefix_db
+	$(zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Atualizando listas, aguarde..." --progress --pulsate --no-cancel) &
+	export pid_update_z=$(pidof -s zenity)
 	# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
-	index=$(cat /etc/wineup/wineup_mirrors | grep -Eio "( ${tool_type}[a-z]* )")
+	index=$(cat /etc/wineup/wineup_mirrors | grep -Eio "( ${tool_type} )")
 	count=2
 	release_list=$(lynx --dump "${mirrors_urls[${index}]}" | grep -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)")
 	# Procura por multiplas paginas no GitHub
@@ -121,24 +135,14 @@ update_db(){
 		}
 		((count++))
 	done
-	# Separa wine e proton, adiciona a entrada na lista de versões e formata para exibir na tela
-	for release in ${release_list};do
-		case "${tool_type}" in
-			WineGE|WineLutris|WineTKG)
-				if `printf "${release}" | awk -F '/' '{print $9}' | grep -Eqi "(wine|lutris)"`;then
-					printf '%s\n' "${release}" | awk -F '/' '{print $9}' >> "/tmp/wineup/release_list"
-				fi
-			;;
-			ProtonGE|ProtonTKG|LuxtorpedaDEV)
-				if `printf "${release}" | awk -F '/' '{print $9}' | grep -Eqi "(proton|luxtorpeda)"`;then
-					printf '%s\n' "${release}" | awk -F '/' '{print $9}' >> "/tmp/wineup/release_list"
-				fi
-			;;
-		esac
-	done
+	# Separa wine e proton, adiciona a entrada na lista de versões
 	# Gera a lista com urls
-	printf "${release_list}" >> "/tmp/wineup/url_release_list"
-	download_db
+	[ "${tool_type}" == "ProtonTKG" -o "${tool_type}" == "ProtonGE" ] && {
+		printf "${release_list}" | grep -i "proton" > "/tmp/wineup/url_release_list"
+	} || {
+		printf "${release_list}" | grep -iv "proton" > "/tmp/wineup/url_release_list"
+	}
+	[ "${1}" == "dxvk" ] && prefix_db || download_db
 }
 
 download_db(){
@@ -152,7 +156,7 @@ download_db(){
 			--separator=" " \
 			--column="" \
 			--column="Versão" \
-			$(for i in `cat "/tmp/wineup/release_list"`;do printf "0 \n${i} \n";done)
+			$(for i in `cat "/tmp/wineup/url_release_list" | awk -F '/' '{print $9}'`;do printf "0 \n${i} \n";done)
 		)
 		[ -z "$selec_list" ] && update_db
 		# Obtem as URLs e prepara para o download
@@ -161,6 +165,7 @@ download_db(){
 		done
 		download_file
 }
+
 exclui_db(){
 	selec_exclui=$(zenity --class="${wineup_version}" --title="${wineup_version}" --list --multiple --checklist \
 			--width=450 \
@@ -170,7 +175,7 @@ exclui_db(){
 			--column="" \
 			--column="Versão" \
 			--ok-label=Excluir \
-			$(for i in ${dir_steamproton}/* ${dir_downloads}/* ;do printf "0 \n`basename ${i}` \n";done)
+			$(for i in ${dir_steamproton}/* ${dir_downloads}/* ;do [ '*' == "`basename ${i}`" ] || printf "0 \n`basename ${i}` \n"; done)
 	)
 	[ -z "${selec_exclui}" ] && update_db
 	for a in ${selec_exclui} ;do
@@ -179,13 +184,83 @@ exclui_db(){
 	notify-send "${wineup_version}" "Arquivos excluidos com sucesso!"
 	update_db
 }
+
+prefix_db(){
+	[ -e "${dir_wineup_user}" ] || mkdir "${dir_wineup_user}"
+	prefix=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
+		--text="Gerenciar Wineprefix:" \
+		--extra-button="Adicionar \"Wineprefix\"" \
+		--forms --width=400 \
+		--separator="|" \
+		--add-combo="Wineprefix:" \
+		--combo-values="`cat "${dir_wineup_user}/wineprefix_list"`" \
+		--add-combo="Ação:" \
+		--combo-values="Gerenciar DXVK|Rodar winecfg|Rodar winetricks")
+	[ -z "${prefix}" ] && update_db
+	[ "${prefix}" == ' | ' ] && update_db
+	[ "${prefix}" == "Adicionar \"Wineprefix\"" ] && {
+		dxvk_dirs=$(zenity --class="${wineup_version}" --title="${wineup_version}" --file-selection --directory --multiple \
+				--width=400 \
+				--height=500 \
+				--text="" \
+				--separator="|")
+		[ -s "${dir_wineup_user}/wineprefix_list" ] && separetor="|" || separetor=""
+		printf "${separetor}${dxvk_dirs}" >> "${dir_wineup_user}/wineprefix_list"
+		prefix_db
+	}
+	wine_prefix=${prefix%%|*}
+	acao_prefix=${prefix##*|}
+	[ "${wine_prefix}" == " " -o "${acao_prefix}" == " " ] && prefix_db
+	case "${acao_prefix}" in
+		'Gerenciar DXVK')
+			dxvk_list=$(ls ${dir_downloads} | grep "dxvk" | tr '\n' '|')
+			WINEPREFIX="${wine_prefix}"
+			dxvk_select=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
+				--text="Gerenciar DXVK:" \
+				--forms --width=400 \
+				--separator="|" \
+				--add-combo="DXVK:" \
+				--combo-values="${dxvk_list%|}" \
+				--add-combo="Ação:" \
+				--combo-values="Instalar/Atualizar DXVK|Desinstalar DXVK|Baixar outras versões")
+			dxvk_version=${dxvk_select%%|*}
+			acao_dxvk=${dxvk_select##*|}
+			case "${acao_dxvk}" in
+				"Instalar/Atualizar DXVK")
+					${dir_downloads}/${dxvk_version}/setup_dxvk.sh install && notify-send "${wineup_version}" "DXVK Instalado/Atualizado!"
+				;;
+				"Desinstalar DXVK")
+					${dir_downloads}/${dxvk_version}/setup_dxvk.sh uninstall && notify-send "${wineup_version}" "DXVK Desinstalado	!"
+				;;
+				"Baixar outras versões")update_db dxvk;;	
+			esac
+			prefix_db
+		;;
+		'Rodar winecfg')
+			WINEPREFIX="${wine_prefix}"
+			winecfg
+			prefix_db
+		;;
+		"Rodar winetricks")
+			WINEPREFIX="${wine_prefix}"
+			winetricks
+			prefix_db
+		;;
+	esac
+	update_db
+}
 #------------------------------------------------------------------
 
 case $1 in
-	-d|--download)
+	-h|--help)printf "${help}";;
+	-c|--cleancfg)
+		printf "Limpando \"${dir_wineup_user}\" "
+		rm -rf ${dir_wineup_user} 2>/dev/null && printf "Ok\n"
+	;;
+	-r|--remove)exclui_db;;
+	-g|--gui|*)
 		# recria os diretorios temporarios
 		update_db
 	;;
-	-h|--help|*)printf "${help}";;
 esac
 
