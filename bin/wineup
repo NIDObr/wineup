@@ -214,7 +214,7 @@ prefix_db(){
 	case "${acao_prefix}" in
 		'Gerenciar DXVK')
 			dxvk_list=$(ls ${dir_downloads} | grep "dxvk" | tr '\n' '|')
-			WINEPREFIX="${wine_prefix}"
+			export WINEPREFIX="${wine_prefix}"
 			dxvk_select=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
 				--text="Gerenciar DXVK:" \
 				--forms --width=400 \
@@ -237,12 +237,12 @@ prefix_db(){
 			prefix_db
 		;;
 		'Rodar winecfg')
-			WINEPREFIX="${wine_prefix}"
+			export WINEPREFIX="${wine_prefix}"
 			winecfg
 			prefix_db
 		;;
 		"Rodar winetricks")
-			WINEPREFIX="${wine_prefix}"
+			export WINEPREFIX="${wine_prefix}"
 			winetricks
 			prefix_db
 		;;
