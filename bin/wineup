@@ -191,11 +191,6 @@ exclui_db(){
 	update_db
 }
 
-progress_db(){
-	$(zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="${1}, aguarde..." --progress --pulsate --no-cancel) &
-	export pid_progress_z=$(pidof -s zenity)
-}
-
 prefix_db(){
 	[ -e "${dir_wineup_user}" ] || mkdir "${dir_wineup_user}"
 	prefix=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
