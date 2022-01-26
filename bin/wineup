@@ -4,12 +4,15 @@
 # Autor: NidoBr
 # Mais: < https://github.com/NIDObr >
 # Email: coqecoisa@gmail.com
-# Versão: 0.9-beta 25/01/2021
+# Versão: 0.9.1-beta 26/01/2021
 # Sobre: Baixa e atualiza versões do WINE e Proton
 # License: BSD-3-Clause License
 #------------------------------------------------------------------
 
 #---------------------------changelog: ----------------------------
+#
+# Versão: 0.9.1-beta 26/01/2021
+#	- Corrigido dialogos de progresso
 #
 # Versão: 0.9-beta 25/01/2021
 #	- Adicionada suporte ao DXVK.
@@ -119,29 +122,32 @@ update_db(){
 	}
 	[ -z "$tool_type" -o "${tool_type}" = " " ] && exit 0
 	[ "$tool_type" == "Gerenciar Wineprefix" ] && prefix_db
-	$(zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Atualizando listas, aguarde..." --progress --pulsate --no-cancel) &
-	export pid_update_z=$(pidof -s zenity)
-	# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
-	index=$(cat /etc/wineup/wineup_mirrors | grep -Eio "( ${tool_type} )")
-	count=2
-	release_list=$(lynx --dump "${mirrors_urls[${index}]}" | grep -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)")
-	# Procura por multiplas paginas no GitHub
-	while true;do
-		next_page=$(lynx --dump "${mirrors_urls[${index}]}" | grep -m 1 -Eo "https://.*\?page\=${count}.*")
-		$(lynx --dump "${next_page}" | grep -q -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)") && {
-			release_list=$(printf "${release_list}\n" ; lynx --dump "${next_page}" | grep -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)")
+	(
+		# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
+		index=$(cat /etc/wineup/wineup_mirrors | grep -Eio "( ${tool_type} )")
+		count=2
+		release_list=$(lynx --dump "${mirrors_urls[${index}]}" | grep -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)")
+		# Procura por multiplas paginas no GitHub
+		while true;do
+			next_page=$(lynx --dump "${mirrors_urls[${index}]}" | grep -m 1 -Eo "https://.*\?page\=${count}.*")
+			$(lynx --dump "${next_page}" | grep -q -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)") && {
+				release_list=$(printf "${release_list}\n" ; lynx --dump "${next_page}" | grep -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)")
+			} || {
+				break
+			}
+			((count++))
+		done
+		# Separa wine e proton, adiciona a entrada na lista de versões
+		# Gera a lista com urls
+		[ "${tool_type}" == "ProtonTKG" -o "${tool_type}" == "ProtonGE" ] && {
+			printf "${release_list}" | grep -i "proton" > "/tmp/wineup/url_release_list"
 		} || {
-			break
+			printf "${release_list}" | grep -iv "proton" > "/tmp/wineup/url_release_list"
 		}
-		((count++))
-	done
-	# Separa wine e proton, adiciona a entrada na lista de versões
-	# Gera a lista com urls
-	[ "${tool_type}" == "ProtonTKG" -o "${tool_type}" == "ProtonGE" ] && {
-		printf "${release_list}" | grep -i "proton" > "/tmp/wineup/url_release_list"
-	} || {
-		printf "${release_list}" | grep -iv "proton" > "/tmp/wineup/url_release_list"
-	}
+	) | zenity --class="${wineup_version}" --title="${wineup_version}" \
+		--width=400 --text="Atualizando listas, aguarde..." \
+		--progress --pulsate --auto-close --no-cancel
+	export pid_update_z=$(pidof -s zenity)
 	[ "${1}" == "dxvk" ] && prefix_db || download_db
 }
 
@@ -183,6 +189,11 @@ exclui_db(){
 	done
 	notify-send "${wineup_version}" "Arquivos excluidos com sucesso!"
 	update_db
+}
+
+progress_db(){
+	$(zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="${1}, aguarde..." --progress --pulsate --no-cancel) &
+	export pid_progress_z=$(pidof -s zenity)
 }
 
 prefix_db(){
@@ -227,13 +238,21 @@ prefix_db(){
 			acao_dxvk=${dxvk_select##*|}
 			case "${acao_dxvk}" in
 				"Instalar/Atualizar DXVK")
-					${dir_downloads}/${dxvk_version}/setup_dxvk.sh install && notify-send "${wineup_version}" "DXVK Instalado/Atualizado!"
+					${dir_downloads}/${dxvk_version}/setup_dxvk.sh install && {
+						notify-send "${wineup_version}" "DXVK Instalado/Atualizado!"
+						printf "Pronto!"
+					}
 				;;
 				"Desinstalar DXVK")
-					${dir_downloads}/${dxvk_version}/setup_dxvk.sh uninstall && notify-send "${wineup_version}" "DXVK Desinstalado	!"
+					${dir_downloads}/${dxvk_version}/setup_dxvk.sh uninstall && {
+						notify-send "${wineup_version}" "DXVK Desinstalado!"
+						printf "Pronto!"
+					}
 				;;
 				"Baixar outras versões")update_db dxvk;;	
-			esac
+			esac | zenity --class="${wineup_version}" --title="${wineup_version}" \
+						--width=400 --text="${acao_dxvk}, aguarde..." \
+						--progress --pulsate --no-cancel
 			prefix_db
 		;;
 		'Rodar winecfg')
