@@ -108,7 +108,6 @@ update_db(){
 }
 
 prefix_db(){
-
 	[ "${1}" == dxvk ] && {
 		wine_prefix="${2}"
 		acao_prefix="Gerenciar DXVK"
@@ -214,7 +213,7 @@ download_file(){
 		--text="Iniciando downloads" \
 		--progress --pulsate --width=400 \
 		--auto-kill --no-cancel
-	${1#_} dxvk ${2}
+	[ "${1}" == "_update_db" ] && update_db || ${1#_} dxvk ${2}
 }
 
 download_db(){
@@ -254,6 +253,7 @@ exclui_db(){
 		find ${dir_steamproton} ${dir_downloads} -iname ${a} -exec rm -rf {} \; &> /dev/null
 	done
 	notify-send "${wineup_version}" "Arquivos excluidos com sucesso!"
+	update_db
 }
 
 add_prefix(){
