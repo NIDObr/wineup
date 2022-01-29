@@ -1,5 +1,8 @@
 # wineup
 Baixa e atualiza versões do WINE e PROTON, com interface em Zenity
+
+![image_1](imagens/start.png)
+
 * Compativel com:
   * WINE-GE
   * WINE-Lutris
