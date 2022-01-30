@@ -73,7 +73,7 @@ update_db(){
 	[ "$tool_type" == "Gerenciar instalados" ] && exclui_db
 	(
 		# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
-		index=$(cat "${HERE/\/bin}/etc/wineup/wineup_mirrors" | grep -Eio "( ${tool_type} )")
+		index=$(cat /etc/wineup/wineup_mirrors | grep -Eio "( ${tool_type} )")
 		count=2
 		release_list=$(lynx --dump "${mirrors_urls[${index}]}" | grep -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)")
 		# Procura por multiplas paginas no GitHub
