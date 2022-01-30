@@ -31,26 +31,26 @@ source /etc/wineup/wineup_mirrors
 start_gui(){
 	[ -e "${dir_wineup_user}/wineprefix_list" ] || printf "${HOME}/.wine" >> "${dir_wineup_user}/wineprefix_list"
 	gui_list=$(zenity --class="${wineup_version}" --title="${wineup_version}" --list \
-		--width=600 \
+		--width=750 \
 		--height=400 \
 		--extra-button="Importar Prefix" \
 		--extra-button="Gerenciar runners" \
 		--text="Prefixos instaladas:" \
 		--column="Caminho" \
-		--column="DXVK" \
-		--column="Arch" \
+		--column="Arch " \
 		--column="Windows" \
+		--column="DXVK  " \
+		--column="VKD3D  " \
 		$(for path_prefix in `cat "${dir_wineup_user}/wineprefix_list" | tr '|' ' '`;do
 			printf "${path_prefix} "
-			backend_version="`strings -s " " "${path_prefix}/dosdevices/c:/windows/system32/dxgi.dll" | grep -Eo 'DXVK:  v[0-9\.]{1,}'`"
-			echo "x${backend_version}x" >> teste
-			strings "${path_prefix}/dosdevices/c:/windows/system32/d3d12.dll" | grep -q 'vkd3d' && backend_version="${backend_version}/vkd3d"
-			[ -z "${backend_version}" ] && backend_version=${backend_version:=\ none}
-			echo "x${backend_version}x" >> teste
-			printf "${backend_version//DXVK:  /} "
 			grep -Eo -m1 "win(32|64)" "${path_prefix}/system.reg"
 			win_version=$(grep -Eo -m1 'Windows (10|8.1|8|2008\ R2|7|2008|Vista|2003|XP)' "${path_prefix}/system.reg")
-			printf "${win_version#Windows } "
+			printf " ${win_version/Windows /w} "
+			dxvk_version="`strings -s " " "${path_prefix}/dosdevices/c:/windows/system32/dxgi.dll" | grep -Eo 'DXVK:  v[0-9\.]{1,}'`"
+			[ -z "${dxvk_version}" ] && dxvk_version=${dxvk_version:=none}
+			printf "${dxvk_version//DXVK:  /} "
+			strings "${path_prefix}/dosdevices/c:/windows/system32/d3d12.dll" | grep -q 'vkd3d' && vkd3d_version="vkd3d"
+			printf "${vkd3d_version:=none} "
 		done)
 	)
 	[ -z "${gui_list}" -o "${gui_list}" = " " ] && exit 0
@@ -63,16 +63,16 @@ start_gui(){
 update_db(){
 	rm -rf "/tmp/wineup"
 	mkdir "/tmp/wineup"
-	[ "${1}" == "dxvk" ] && {
-		tool_type="DXVK"
-	} || {
+#	[ "${1}" == "dxvk" ] && {
+#		tool_type="DXVK"
+#	} || {
 		tool_type=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
 			--text="Escolha qual ferramenta você quer baixar:" \
 			--cancel-label="Voltar" \
 			--extra-button="Gerenciar instalados" \
 			--forms --width=400 --add-combo="Versão:" \
 			--combo-values="WineGE|WineLutris|WineTKG|ProtonGE|ProtonTKG|LuxtorpedaDEV|DXVK|VKD3D-Proton" )
-	}
+#	}
 	[ -z "$tool_type" -o "${tool_type}" = " " ] && start_gui
 	[ "$tool_type" == "Gerenciar instalados" ] && exclui_db
 	(
@@ -136,7 +136,7 @@ prefix_db(){
 	[ "${WINEPREFIX}" == " " -o "${acao_prefix}" == " " ] && prefix_db
 	case "${acao_prefix}" in
 		'Gerenciar DXVK')
-			backend_api=$(ls ${dir_downloads} | grep -E "dxvk" | tr '\n' '|')
+			backend_api=$(ls ${dir_downloads} | grep -E "dxvk|vkd3d" | tr '\n' '|')
 			backend_select=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
 				--text="Gerenciar DXVK:" \
 				--forms --width=400 \
@@ -152,7 +152,8 @@ prefix_db(){
 			case "${acao_backend}" in
 				"Instalar/Atualizar")
 					progress_db "Instalando/Atualizando"
-					${dir_downloads}/${backend_version}/setup_dxvk.sh install 2>/dev/null && {
+					printf ${backend_version} | grep -q "dxvk" && script_setup="setup_dxvk.sh" || script_setup="setup_vkd3d_proton.sh"
+					${dir_downloads}/${backend_version}/${script_setup} install && {
 						notify-send "${wineup_version}" "Instalado/Atualizado!"
 						kill -9 "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
 					}
@@ -164,7 +165,7 @@ prefix_db(){
 						kill -9 "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
 					}
 				;;
-				"Baixar outras versões")update_db dxvk;;
+				"Baixar outras versões")update_db;;
 			esac
 			prefix_db ${WINEPREFIX}
 		;;
