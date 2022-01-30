@@ -4,7 +4,7 @@
 # Autor: NidoBr
 # Mais: < https://github.com/NIDObr >
 # Email: coqecoisa@gmail.com
-# Versão: 1.0-beta 29/01/2021
+# Versão: 1.0-beta 30/01/2021
 # Sobre: Baixa e atualiza versões do WINE e Proton
 # License: BSD-3-Clause License
 #------------------------------------------------------------------
@@ -73,7 +73,7 @@ update_db(){
 	[ "$tool_type" == "Gerenciar instalados" ] && exclui_db
 	(
 		# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
-		index=$(cat /etc/wineup/wineup_mirrors | grep -Eio "( ${tool_type} )")
+		index=$(cat "${HERE/\/bin}/etc/wineup/wineup_mirrors" | grep -Eio "( ${tool_type} )")
 		count=2
 		release_list=$(lynx --dump "${mirrors_urls[${index}]}" | grep -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)")
 		# Procura por multiplas paginas no GitHub
@@ -189,7 +189,6 @@ download_file(){
 		printf '# Baixando arquivos, aguarde...\n'
 		aria2c --summary-interval=0 --console-log-level=error -x"${aria_multi}" -j"${aria_paralel}" -i "/tmp/wineup/dowload_list" -d "/tmp/wineup/downloads" && {
 			printf '# Extraindo arquivos...\n'
-			echo $file_extract > teste
 			for file_extract in /tmp/wineup/downloads/* ;do
 				if $(basename "${file_extract}" | grep -qi 'vkd3d');then
 					tar -xaf "${file_extract}" -C "${dir_downloads}"
