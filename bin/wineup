@@ -25,6 +25,7 @@ Opções:
 # Carrega as configuraões
 source /etc/wineup/wineup_cfg
 source /etc/wineup/wineup_mirrors
+export main_pid=$$
 
 #----------------------------Funçoes-------------------------------
 
@@ -53,7 +54,11 @@ start_gui(){
 			printf "${vkd3d_version} "
 		done)
 	)
-	[ -z "${gui_list}" -o "${gui_list}" = " " ] && exit 0
+	[ -z "${gui_list}" -o "${gui_list}" = " " ] && {
+		killall zenity &>/dev/null
+		kill "${main_pid}" &>/dev/null
+		exit 0
+	}
 	[ "${gui_list}" == "Importar Prefix" ] && import_prefix
 	[ "${gui_list}" == "Gerenciar runners" ] && update_db
 	prefix_db "${gui_list}"
@@ -73,7 +78,7 @@ update_db(){
 	[ "$tool_type" == "Gerenciar instalados" ] && exclui_db
 	(
 		# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
-		index=$(cat /etc/wineup/wineup_mirrors | grep -Eio "( ${tool_type} )")
+		index=$(cat "/etc/wineup/wineup_mirrors" | grep -Eio "( ${tool_type} )")
 		count=2
 		release_list=$(lynx --dump "${mirrors_urls[${index}]}" | grep -Eo "https\:\/\/.*releases.*tar\.(gz|xz|zst)")
 		# Procura por multiplas paginas no GitHub
@@ -147,20 +152,20 @@ prefix_db(){
 			acao_backend=${backend_select##*|}
 			case "${acao_backend}" in
 				"Instalar/Atualizar")
-					progress_db "Instalando/Atualizando"
-					printf ${backend_version} | grep -q "dxvk" && script_setup="setup_dxvk.sh" || script_setup="setup_vkd3d_proton.sh"
-					${dir_downloads}/${backend_version}/${script_setup} install &>/dev/null && {
-						notify-send "${wineup_version}" "Instalado/Atualizado!"
-						kill -9 "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
-					}
+					(
+						printf ${backend_version} | grep -q "dxvk" && script_setup="setup_dxvk.sh" || script_setup="setup_vkd3d_proton.sh"
+						${dir_downloads}/${backend_version}/${script_setup} install &>/dev/null && {
+							notify-send "${wineup_version}" "Instalado/Atualizado!"
+						}
+					) | zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Instalando/Atualizando, aguarde..." --progress --pulsate --no-cancel
 				;;
 				"Desinstalar")
-					progress_db "Desinstalando"
-					printf ${backend_version} | grep -q "dxvk" && script_setup="setup_dxvk.sh" || script_setup="setup_vkd3d_proton.sh"
-					${dir_downloads}/${backend_version}/${script_setup} uninstall &>/dev/null && {
-						notify-send "${wineup_version}" "Desinstalado!"
-						kill -9 "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
-					}
+					(
+						printf ${backend_version} | grep -q "dxvk" && script_setup="setup_dxvk.sh" || script_setup="setup_vkd3d_proton.sh"
+						${dir_downloads}/${backend_version}/${script_setup} uninstall &>/dev/null && {
+							notify-send "${wineup_version}" "Desinstalado!"
+						}
+					) | zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Desinstalando, aguarde..." --progress --pulsate --no-cancel
 				;;
 				"Baixar outras versões")update_db;;
 			esac
@@ -176,7 +181,7 @@ prefix_db(){
 			prefix_db "${WINEPREFIX}"
 		;;
 	esac
-	update_db
+	prefix_db ${WINEPREFIX}
 }
 
 # Responsavel por baixar os arquivos solicitados
@@ -247,12 +252,12 @@ exclui_db(){
 			$(for i in ${dir_steamproton}/* ${dir_downloads}/* ;do [ '*' == "`basename ${i}`" ] || printf "0 \n`basename ${i}` \n"; done)
 	)
 	[ -z "${selec_exclui}" ] && update_db
-	progress_db "Excluindo arquivos"
-	for a in ${selec_exclui} ;do
-		find ${dir_steamproton} ${dir_downloads} -iname ${a} -exec rm -rf {} \; &> /dev/null
-	done
-	notify-send "${wineup_version}" "Arquivos excluidos com sucesso!"
-	kill -9 "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
+	(
+		for a in ${selec_exclui} ;do
+			find ${dir_steamproton} ${dir_downloads} -iname ${a} -exec rm -rf {} \; &> /dev/null
+		done
+		notify-send "${wineup_version}" "Arquivos excluidos com sucesso!"
+	) | zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Excluindo arquivos, aguarde..." --progress --pulsate --no-cancel
 	update_db
 }
 
@@ -290,22 +295,15 @@ import_prefix(){
 				2003)win_version="win2003";;
 				XP)[ "${WINEARCH}" == "win32" ] && win_version="winxp" || win_version="winxp64" ;;
 			esac
-			progress_db "Gerando Prefixo"
-			WINEPREFIX="${import_prefix_dirs_test}" WINEARCH=${WINEARCH} winecfg /v ${win_version}
-			sleep 5 && notify-send "${wineup_version}" "Prefixo gerado com sucesso!"
-			kill -9 "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
+			(
+				WINEPREFIX="${import_prefix_dirs_test}" WINEARCH=${WINEARCH} winecfg /v ${win_version}
+				sleep 5 && notify-send "${wineup_version}" "Prefixo gerado com sucesso!"
+			) | zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Gerando Prefixo, aguarde..." --progress --pulsate --no-cancel
 		}
 	done
 	printf "${separetor}${import_prefix_dirs}" >> "${dir_wineup_user}/wineprefix_list"
-	kill -9 "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
+	kill -9 "${pid_while_z}" "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
 	start_gui
-}
-
-progress_db(){
-	pid_progress_z=" "
-	while :;do : ; [ "${pid_progress_z}" == "dead" ] && break ;done |
-	zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="${1}, aguarde..." --progress --pulsate --no-cancel &
-	export pid_progress_z=$(pidof -s zenity)
 }
 
 #------------------------------------------------------------------
@@ -323,5 +321,8 @@ case $1 in
 	;;
 esac
 
-
+# Encerrar o programa
+killall zenity 2>/dev/null
+kill "${main_pid}"
+exit 0
 
