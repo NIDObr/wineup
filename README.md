@@ -1,7 +1,7 @@
 # wineup
 Gerencia os prefixos do wine e baixa/atualiza versões do WINE e PROTON, com interface em Zenity
 
-![image_1](imagens/start.png)
+![image_1](imagens/start1.png)
 
 * Compativel com:
   * WINE-GE
