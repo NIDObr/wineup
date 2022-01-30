@@ -21,7 +21,6 @@ Opções:
 	-c, --cleancfg		Limpa as configurações do usuario
 	-g, --gui		Inicia a GUI (Padrão)
 	-h, --help		Exibe esta ajuda e sai
-	-r, --remove		Inicia a janela para remover versões especificas
 "
 # Carrega as configuraões
 source /etc/wineup/wineup_cfg
@@ -34,7 +33,7 @@ start_gui(){
 	gui_list=$(zenity --class="${wineup_version}" --title="${wineup_version}" --list \
 		--width=600 \
 		--height=400 \
-		--extra-button="Importar \"Wineprefix\"" \
+		--extra-button="Importar Prefix" \
 		--extra-button="Gerenciar runners" \
 		--text="Prefixos instaladas:" \
 		--column="Caminho" \
@@ -42,18 +41,17 @@ start_gui(){
 		--column="Arch" \
 		--column="Windows" \
 		$(for path_prefix in `cat "${dir_wineup_user}/wineprefix_list" | tr '|' ' '`;do
-			printf "${path_prefix}"
-			dxvk_version="`strings "${path_prefix}/dosdevices/c:/windows/system32/dxgi.dll" | tr '$\n' ' ' | grep -Eo 'DXVK:  v[0-9\.]{1,}'`"
-			[ -z "${dxvk_version}" ] && dxvk_version=${dxvk_version:=\ none}
+			printf "${path_prefix} "
+			dxvk_version="`strings -s " " "${path_prefix}/dosdevices/c:/windows/system32/dxgi.dll" | grep -Eo 'DXVK:  v[0-9\.]{1,}'`"
+			dxvk_version=${dxvk_version:=\ none}
 			printf "${dxvk_version#DXVK: } "
-			prefix_arch=$(grep -Eo "arch=win(32|64)" "${path_prefix}/system.reg")
-			printf "${prefix_arch#arch=} "
-			win_version=$(strings "${path_prefix}/system.reg" | grep -Eo -m1 'Windows (10|8.1|8|2008\ R2|7|2008|Vista|2003|XP)')
-			printf "${win_version#Windows\ } "
+			grep -Eo -m1 "win(32|64)" "${path_prefix}/system.reg"
+			win_version=$(grep -Eo -m1 'Windows (10|8.1|8|2008\ R2|7|2008|Vista|2003|XP)' "${path_prefix}/system.reg")
+			printf "${win_version#Windows } "
 		done)
 	)
 	[ -z "${gui_list}" -o "${gui_list}" = " " ] && exit 0
-	[ "${gui_list}" == "Importar \"Wineprefix\"" ] && add_prefix
+	[ "${gui_list}" == "Importar Prefix" ] && import_prefix
 	[ "${gui_list}" == "Gerenciar runners" ] && update_db
 	prefix_db "${gui_list}"
 }
@@ -151,15 +149,17 @@ prefix_db(){
 			acao_dxvk=${dxvk_select##*|}
 			case "${acao_dxvk}" in
 				"Instalar/Atualizar DXVK")
-					${dir_downloads}/${dxvk_version}/setup_dxvk.sh install && {
+					progress_db "Instalando/Atualizando DXVK"
+					${dir_downloads}/${dxvk_version}/setup_dxvk.sh install 2>/dev/null && {
 						notify-send "${wineup_version}" "DXVK Instalado/Atualizado!"
-						printf "Pronto!"
+						kill ${pid_progress_z}
 					}
 				;;
 				"Desinstalar DXVK")
-					${dir_downloads}/${dxvk_version}/setup_dxvk.sh uninstall && {
+					progress_db "Desinstalando DXVK"
+					${dir_downloads}/${dxvk_version}/setup_dxvk.sh uninstall 2>/dev/null && {
 						notify-send "${wineup_version}" "DXVK Desinstalado!"
-						printf "Pronto!"
+						kill ${pid_progress_z}
 					}
 				;;
 				"Baixar outras versões")update_db dxvk ${wine_prefix};;	
@@ -249,21 +249,56 @@ exclui_db(){
 			$(for i in ${dir_steamproton}/* ${dir_downloads}/* ;do [ '*' == "`basename ${i}`" ] || printf "0 \n`basename ${i}` \n"; done)
 	)
 	[ -z "${selec_exclui}" ] && update_db
+	progress_db "Excluindo arquivos"
 	for a in ${selec_exclui} ;do
 		find ${dir_steamproton} ${dir_downloads} -iname ${a} -exec rm -rf {} \; &> /dev/null
 	done
 	notify-send "${wineup_version}" "Arquivos excluidos com sucesso!"
+	kill ${pid_progress_z}
 	update_db
 }
 
-add_prefix(){
+import_prefix(){
 	dxvk_dirs=$(zenity --class="${wineup_version}" --title="${wineup_version}" --file-selection --directory --multiple \
 		--width=400 \
 		--height=500 \
 		--text="" \
 		--separator="|")
 	[ -s "${dir_wineup_user}/wineprefix_list" ] && separetor="|" || separetor=""
+	for dxvk_dirs_test in $(printf ${dxvk_dirs//|/ });do
+		[ -e "${dxvk_dirs_test}/system.reg" ] || {
+			new_prefix=$(zenity --class="${WINEPREFIX}" --title="${wineup_version}" \
+				--text=" Criar novo Prefixo: \n  ${wine_prefix}  \n" \
+				--cancel-label="Voltar" \
+				--forms --width=400 \
+				--separator="|" \
+				--add-combo="Arquitetura:" \
+				--combo-values="32 bits|64 bits" \
+				--add-combo="Versão do Windowns:" \
+				--combo-values="10|8.1|8|2008\ R2|7|2008|Vista|2003|XP")
+			[ -z "${new_prefix}" -o "${new_prefix}" = " " ] && start_gui
+			case ${new_prefix%%|*} in
+				"32 bits")WINEARCH="win32";;
+				"64 bits")WINEARCH="win64";;
+			esac
+			case ${new_prefix##*|} in
+				10)win_version="win10";;
+				8.1)win_version="win81";;
+				8)win_version="win8";;
+				2008\ R2)win_version="win2008r2";;
+				7)win_version="win7";;
+				2008)win_version="win2008";;
+				Vista)win_version="vista";;
+				2003)win_version="win2003";;
+				XP)[ "${WINEARCH}" == "win32" ] && win_version="winxp" || win_version="winxp64" ;;
+			esac
+			progress_db "Gerando Prefixo"
+			WINEPREFIX="${dxvk_dirs_test}" WINEARCH=${WINEARCH} winecfg /v ${win_version}
+			sleep 5 && notify-send "${wineup_version}" "Prefixo gerado com sucesso!"
+		}
+	done
 	printf "${separetor}${dxvk_dirs}" >> "${dir_wineup_user}/wineprefix_list"
+	kill "${pid_progress_z}" 2>/dev/null
 	start_gui
 }
 
@@ -281,10 +316,10 @@ case $1 in
 		rm -rf ${dir_wineup_user} 2>/dev/null && printf "Ok\n"
 		mkdir "${dir_wineup_user}"
 	;;
-	-r|--remove)exclui_db _exit;;
 	-g|--gui|*)
 		[ -e "${dir_wineup_user}" ] || mkdir "${dir_wineup_user}"
 		start_gui
 	;;
 esac
+
 
