@@ -11,6 +11,7 @@ Gerencia os prefixos do wine e baixa/atualiza versões do WINE e PROTON, com int
   * Proton-TKG
   * Luxtorpeda-DEV
   * DXVK
+  * VKD3D-Proton
  
 ## Dependencias:
  * lynx
