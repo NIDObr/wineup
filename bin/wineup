@@ -25,7 +25,6 @@ Opções:
 # Carrega as configuraões
 source /etc/wineup/wineup_cfg
 source /etc/wineup/wineup_mirrors
-export main_pid=$$
 
 #----------------------------Funçoes-------------------------------
 
@@ -56,7 +55,6 @@ start_gui(){
 	)
 	[ -z "${gui_list}" -o "${gui_list}" = " " ] && {
 		killall zenity &>/dev/null
-		kill "${main_pid}" &>/dev/null
 		exit 0
 	}
 	[ "${gui_list}" == "Importar Prefix" ] && import_prefix
@@ -323,6 +321,5 @@ esac
 
 # Encerrar o programa
 killall zenity 2>/dev/null
-kill "${main_pid}"
 exit 0
 
