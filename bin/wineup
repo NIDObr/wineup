@@ -43,10 +43,11 @@ start_gui(){
 		$(for path_prefix in `cat "${dir_wineup_user}/wineprefix_list" | tr '|' ' '`;do
 			printf "${path_prefix} "
 			backend_version="`strings -s " " "${path_prefix}/dosdevices/c:/windows/system32/dxgi.dll" | grep -Eo 'DXVK:  v[0-9\.]{1,}'`"
-			[ -z "${backend_version}" ] && {
-					strings "${path_prefix}/dosdevices/c:/windows/system32/d3d12.dll" | grep -q 'vkd3d' && backend_version=" vkd3d" || backend_version=${backend_version:=\ none}
-			}
-			printf "${backend_version#DXVK: } "
+			echo "x${backend_version}x" >> teste
+			strings "${path_prefix}/dosdevices/c:/windows/system32/d3d12.dll" | grep -q 'vkd3d' && backend_version="${backend_version}/vkd3d"
+			[ -z "${backend_version}" ] && backend_version=${backend_version:=\ none}
+			echo "x${backend_version}x" >> teste
+			printf "${backend_version//DXVK:  /} "
 			grep -Eo -m1 "win(32|64)" "${path_prefix}/system.reg"
 			win_version=$(grep -Eo -m1 'Windows (10|8.1|8|2008\ R2|7|2008|Vista|2003|XP)' "${path_prefix}/system.reg")
 			printf "${win_version#Windows } "
