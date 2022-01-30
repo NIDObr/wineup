@@ -42,9 +42,11 @@ start_gui(){
 		--column="Windows" \
 		$(for path_prefix in `cat "${dir_wineup_user}/wineprefix_list" | tr '|' ' '`;do
 			printf "${path_prefix} "
-			dxvk_version="`strings -s " " "${path_prefix}/dosdevices/c:/windows/system32/dxgi.dll" | grep -Eo 'DXVK:  v[0-9\.]{1,}'`"
-			dxvk_version=${dxvk_version:=\ none}
-			printf "${dxvk_version#DXVK: } "
+			backend_version="`strings -s " " "${path_prefix}/dosdevices/c:/windows/system32/dxgi.dll" | grep -Eo 'DXVK:  v[0-9\.]{1,}'`"
+			[ -z "${backend_version}" ] && {
+					strings "${path_prefix}/dosdevices/c:/windows/system32/d3d12.dll" | grep -q 'vkd3d' && backend_version=" vkd3d" || backend_version=${backend_version:=\ none}
+			}
+			printf "${backend_version#DXVK: } "
 			grep -Eo -m1 "win(32|64)" "${path_prefix}/system.reg"
 			win_version=$(grep -Eo -m1 'Windows (10|8.1|8|2008\ R2|7|2008|Vista|2003|XP)' "${path_prefix}/system.reg")
 			printf "${win_version#Windows } "
@@ -68,7 +70,7 @@ update_db(){
 			--cancel-label="Voltar" \
 			--extra-button="Gerenciar instalados" \
 			--forms --width=400 --add-combo="Versão:" \
-			--combo-values="WineGE|WineLutris|WineTKG|ProtonGE|ProtonTKG|LuxtorpedaDEV|DXVK" )
+			--combo-values="WineGE|WineLutris|WineTKG|ProtonGE|ProtonTKG|LuxtorpedaDEV|DXVK|VKD3D-Proton" )
 	}
 	[ -z "$tool_type" -o "${tool_type}" = " " ] && start_gui
 	[ "$tool_type" == "Gerenciar instalados" ] && exclui_db
@@ -89,7 +91,7 @@ update_db(){
 		done
 		# Separa wine e proton, adiciona a entrada na lista de versões
 		# Gera a lista com urls
-		[ "${tool_type}" == "ProtonTKG" -o "${tool_type}" == "ProtonGE" ] && {
+		[ "${tool_type}" == "ProtonTKG" -o "${tool_type}" == "ProtonGE" -o "${tool_type}" == "VKD3D-Proton" ] && {
 			printf "${release_list}" | grep -i "proton" > "/tmp/wineup/url_release_list"
 		} || {
 			printf "${release_list}" | grep -iv "proton" > "/tmp/wineup/url_release_list"
@@ -99,7 +101,7 @@ update_db(){
 		--progress --pulsate --auto-close --no-cancel
 	export pid_update_z=$(pidof -s zenity)
 	[ "${1}" == "dxvk" ] && {
-		download_db _prefix_db ${2}
+		download_db _prefix_db
 	} || {
 		download_db _update_db
 	}
@@ -107,12 +109,12 @@ update_db(){
 
 prefix_db(){
 	[ "${1}" == dxvk ] && {
-		wine_prefix="${2}"
+		export WINEPREFIX="${2}"
 		acao_prefix="Gerenciar DXVK"
 	} || {
-		wine_prefix="${1}"
+		export WINEPREFIX="${1}"
 		prefix=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
-			--text=" Gerenciar Wineprefix: \n  ${wine_prefix}  \n" \
+			--text=" Gerenciar Wineprefix: \n  ${WINEPREFIX}  \n" \
 			--cancel-label="Voltar" \
 			--extra-button="Remover" \
 			--extra-button="Excluir" \
@@ -123,58 +125,55 @@ prefix_db(){
 		[ -z "${prefix}" ] && start_gui
 		[ "${prefix}" == ' | ' ] && start_gui
 		[ "${prefix}" == "Remover" -o "${prefix}" == "Excluir" ] && {
-			[ "${prefix}" == "Excluir" ] && rm -rf ${wine_prefix:=/dev/null}
+			[ "${prefix}" == "Excluir" ] && rm -rf ${WINEPREFIX:=/dev/null}
 			old_list=$(cat "${dir_wineup_user}/wineprefix_list")
-			printf "${old_list/"${wine_prefix}"/}" > "${dir_wineup_user}/wineprefix_list"
+			printf "${old_list/"${WINEPREFIX}"/}" > "${dir_wineup_user}/wineprefix_list"
 			start_gui
 		}
 		acao_prefix=${prefix}
 	}
-	[ "${wine_prefix}" == " " -o "${acao_prefix}" == " " ] && prefix_db ${wine_prefix}
+	[ "${WINEPREFIX}" == " " -o "${acao_prefix}" == " " ] && prefix_db
 	case "${acao_prefix}" in
 		'Gerenciar DXVK')
-			dxvk_list=$(ls ${dir_downloads} | grep "dxvk" | tr '\n' '|')
-			export WINEPREFIX="${wine_prefix}"
-			dxvk_select=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
+			backend_api=$(ls ${dir_downloads} | grep -E "dxvk" | tr '\n' '|')
+			backend_select=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
 				--text="Gerenciar DXVK:" \
 				--forms --width=400 \
 				--separator="|" \
-				--add-combo="DXVK:" \
-				--combo-values="${dxvk_list%|}" \
+				--add-combo="Backend API:" \
+				--combo-values="${backend_api%|}" \
 				--add-combo="Ação:" \
-				--combo-values="Instalar/Atualizar DXVK|Desinstalar DXVK|Baixar outras versões")
-			[ -z "${dxvk_select}" ] && start_gui
-			[ "${dxvk_select}" == ' | ' ] && start_gui
-			dxvk_version=${dxvk_select%%|*}
-			acao_dxvk=${dxvk_select##*|}
-			case "${acao_dxvk}" in
-				"Instalar/Atualizar DXVK")
-					progress_db "Instalando/Atualizando DXVK"
-					${dir_downloads}/${dxvk_version}/setup_dxvk.sh install 2>/dev/null && {
-						notify-send "${wineup_version}" "DXVK Instalado/Atualizado!"
-						kill ${pid_progress_z}
+				--combo-values="Instalar/Atualizar|Desinstalar|Baixar outras versões")
+			[ -z "${backend_select}" ] && start_gui
+			[ "${backend_select}" == ' | ' ] && start_gui
+			backend_version=${backend_select%%|*}
+			acao_backend=${backend_select##*|}
+			case "${acao_backend}" in
+				"Instalar/Atualizar")
+					progress_db "Instalando/Atualizando"
+					${dir_downloads}/${backend_version}/setup_dxvk.sh install 2>/dev/null && {
+						notify-send "${wineup_version}" "Instalado/Atualizado!"
+						kill -9 "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
 					}
 				;;
-				"Desinstalar DXVK")
-					progress_db "Desinstalando DXVK"
-					${dir_downloads}/${dxvk_version}/setup_dxvk.sh uninstall 2>/dev/null && {
-						notify-send "${wineup_version}" "DXVK Desinstalado!"
-						kill ${pid_progress_z}
+				"Desinstalar")
+					progress_db "Desinstalando"
+					${dir_downloads}/${backend_version}/setup_dxvk.sh uninstall 2>/dev/null && {
+						notify-send "${wineup_version}" "Desinstalado!"
+						kill -9 "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
 					}
 				;;
-				"Baixar outras versões")update_db dxvk ${wine_prefix};;	
+				"Baixar outras versões")update_db dxvk;;
 			esac
-			prefix_db ${wine_prefix}
+			prefix_db ${WINEPREFIX}
 		;;
 		'Rodar winecfg')
-			export WINEPREFIX="${wine_prefix}"
 			winecfg
-			prefix_db ${wine_prefix}
+			prefix_db "${WINEPREFIX}"
 		;;
 		"Rodar winetricks")
-			export WINEPREFIX="${wine_prefix}"
 			winetricks
-			prefix_db ${wine_prefix}
+			prefix_db "${WINEPREFIX}"
 		;;
 	esac
 	update_db
@@ -192,14 +191,14 @@ download_file(){
 			printf '# Extraindo arquivos...\n'
 			echo $file_extract > teste
 			for file_extract in /tmp/wineup/downloads/* ;do
-				if $(basename "${file_extract}" | grep -qi 'proton');then
+				if $(basename "${file_extract}" | grep -qi 'vkd3d');then
+					tar -xaf "${file_extract}" -C "${dir_downloads}"
+				elif $(basename "${file_extract}" | grep -qi 'proton');then
 					tar -xaf "${file_extract}" -C "${dir_steamproton}"
 				elif $(basename "${file_extract}" | grep -qi 'luxtorpeda');then
 					torpeda_ver=$(basename "${file_extract}" | grep -Eo '[0-9]{1,}')
 					tar -xaf "${file_extract}" -C "/tmp/wineup/downloads"
 					mv "/tmp/wineup/downloads/luxtorpeda" "${dir_steamproton}/luxtorpeda-${torpeda_ver}"
-				elif $(basename "${file_extract}" | grep -qi 'dxvk');then
-					tar -xaf "${file_extract}" -C "${dir_downloads}"
 				else
 					tar -xaf "${file_extract}" -C "${dir_downloads}"
 				fi
@@ -213,7 +212,7 @@ download_file(){
 		--text="Iniciando downloads" \
 		--progress --pulsate --width=400 \
 		--auto-kill --no-cancel
-	[ "${1}" == "_update_db" ] && update_db || ${1#_} dxvk ${2}
+	[ "${1}" == "_update_db" ] && update_db || ${1#_} dxvk ${WINEPREFIX}
 }
 
 download_db(){
@@ -234,7 +233,7 @@ download_db(){
 		for url_get in $selec_list;do
 			grep "$url_get" /tmp/wineup/url_release_list >> "/tmp/wineup/dowload_list"
 		done
-		download_file ${1} ${2}
+		download_file ${1}
 }
 
 exclui_db(){
@@ -254,21 +253,21 @@ exclui_db(){
 		find ${dir_steamproton} ${dir_downloads} -iname ${a} -exec rm -rf {} \; &> /dev/null
 	done
 	notify-send "${wineup_version}" "Arquivos excluidos com sucesso!"
-	kill ${pid_progress_z}
+	kill -9 "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
 	update_db
 }
 
 import_prefix(){
-	dxvk_dirs=$(zenity --class="${wineup_version}" --title="${wineup_version}" --file-selection --directory --multiple \
+	import_prefix_dirs=$(zenity --class="${wineup_version}" --title="${wineup_version}" --file-selection --directory --multiple \
 		--width=400 \
 		--height=500 \
 		--text="" \
 		--separator="|")
 	[ -s "${dir_wineup_user}/wineprefix_list" ] && separetor="|" || separetor=""
-	for dxvk_dirs_test in $(printf ${dxvk_dirs//|/ });do
-		[ -e "${dxvk_dirs_test}/system.reg" ] || {
+	for import_prefix_dirs_test in $(printf ${import_prefix_dirs//|/ });do
+		[ -e "${import_prefix_dirs_test}/system.reg" ] || {
 			new_prefix=$(zenity --class="${WINEPREFIX}" --title="${wineup_version}" \
-				--text=" Criar novo Prefixo: \n  ${wine_prefix}  \n" \
+				--text=" Criar novo Prefixo: \n  ${WINEPREFIX}  \n" \
 				--cancel-label="Voltar" \
 				--forms --width=400 \
 				--separator="|" \
@@ -293,17 +292,19 @@ import_prefix(){
 				XP)[ "${WINEARCH}" == "win32" ] && win_version="winxp" || win_version="winxp64" ;;
 			esac
 			progress_db "Gerando Prefixo"
-			WINEPREFIX="${dxvk_dirs_test}" WINEARCH=${WINEARCH} winecfg /v ${win_version}
+			WINEPREFIX="${import_prefix_dirs_test}" WINEARCH=${WINEARCH} winecfg /v ${win_version}
 			sleep 5 && notify-send "${wineup_version}" "Prefixo gerado com sucesso!"
+			kill -9 "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
 		}
 	done
-	printf "${separetor}${dxvk_dirs}" >> "${dir_wineup_user}/wineprefix_list"
-	kill "${pid_progress_z}" 2>/dev/null
+	printf "${separetor}${import_prefix_dirs}" >> "${dir_wineup_user}/wineprefix_list"
+	kill -9 "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
 	start_gui
 }
 
 progress_db(){
-	$(zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="${1}, aguarde..." --progress --pulsate --no-cancel) &
+	while :;do : ; [ "${pid_progress_z}" == "dead" ] && break ;done |
+	zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="${1}, aguarde..." --progress --pulsate --no-cancel &
 	export pid_progress_z=$(pidof -s zenity)
 }
 
