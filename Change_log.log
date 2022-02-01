@@ -1,5 +1,8 @@
 #---------------------------changelog: ----------------------------
 #
+# Versão: 1.1-beta 01/02/2021
+# - Bug ao excluir arquivos corrigido (em breve appimage v1.1)
+#
 # Versão: 1.0-beta 30/01/2021
 #	- Inrterface reformulada
 #	  - exibe versão do Windows
