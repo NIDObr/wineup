@@ -4,7 +4,7 @@
 # Autor: NidoBr
 # Mais: < https://github.com/NIDObr >
 # Email: coqecoisa@gmail.com
-# Versão: 1.0-beta 30/01/2021
+# Versão: 1.1-beta 01/02/2021
 # Sobre: Baixa e atualiza versões do WINE e Proton
 # License: BSD-3-Clause License
 #------------------------------------------------------------------
@@ -247,12 +247,12 @@ exclui_db(){
 			--column="" \
 			--column="Versão" \
 			--ok-label=Excluir \
-			$(for i in ${dir_steamproton}/* ${dir_downloads}/* ;do [ '*' == "`basename ${i}`" ] || printf "0 \n`basename ${i}` \n"; done)
+			$(for i in ${dir_steamproton:-/dev/null}/* ${dir_downloads:-/dev/null}/* ;do [ '*' == "`basename ${i}`" ] || printf "0 \n`basename ${i}` \n"; done)
 	)
 	[ -z "${selec_exclui}" ] && update_db
 	(
 		for a in ${selec_exclui} ;do
-			find ${dir_steamproton} ${dir_downloads} -iname ${a} -exec rm -rf {} \; &> /dev/null
+			find "${dir_steamproton:-/dev/null}/" "${dir_downloads:-/dev/null}/" -iname ${a} -exec rm -rf {} \; &> /dev/null
 		done
 		notify-send "${wineup_version}" "Arquivos excluidos com sucesso!"
 	) | zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Excluindo arquivos, aguarde..." --progress --pulsate --no-cancel
