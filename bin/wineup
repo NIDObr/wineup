@@ -4,7 +4,7 @@
 # Autor: NidoBr
 # Mais: < https://github.com/NIDObr >
 # Email: coqecoisa@gmail.com
-# Versão: 1.1-beta 01/02/2021
+# Versão: 1.1-beta 06/02/2021
 # Sobre: Baixa e atualiza versões do WINE e Proton
 # License: BSD-3-Clause License
 #------------------------------------------------------------------
@@ -29,7 +29,9 @@ source /etc/wineup/wineup_mirrors
 #----------------------------Funçoes-------------------------------
 
 start_gui(){
-	[ -e "${dir_wineup_user}/wineprefix_list" ] || printf "${HOME}/.wine" >> "${dir_wineup_user}/wineprefix_list"
+	[ -e "${HOME}/.wine/system.reg" ] && {
+		printf "${HOME}/.wine" >> "${dir_wineup_user}/wineprefix_list"
+	}
 	gui_list=$(zenity --class="${wineup_version}" --title="${wineup_version}" --list \
 		--width=750 \
 		--height=400 \
@@ -41,7 +43,7 @@ start_gui(){
 		--column="Windows" \
 		--column="DXVK  " \
 		--column="VKD3D  " \
-		$(for path_prefix in `cat "${dir_wineup_user}/wineprefix_list" | tr '|' ' '`;do
+		$(for path_prefix in `cat "${dir_wineup_user}/wineprefix_list" 2>/dev/null | tr '|' ' '`;do
 			printf "${path_prefix} "
 			grep -Eo -m1 "win(32|64)" "${path_prefix}/system.reg"
 			win_version=$(grep -Eo -m1 'Windows (10|8.1|8|2008\ R2|7|2008|Vista|2003|XP)' "${path_prefix}/system.reg")
