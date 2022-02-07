@@ -4,7 +4,7 @@
 # Autor: NidoBr
 # Mais: < https://github.com/NIDObr >
 # Email: coqecoisa@gmail.com
-# Versão: 1.1-beta 06/02/2021
+# Versão: 1.1-beta 07/02/2021
 # Sobre: Baixa e atualiza versões do WINE e Proton
 # License: BSD-3-Clause License
 #------------------------------------------------------------------
@@ -13,7 +13,7 @@
 
 # Cria uma array associativa contendo as mirros
 declare -A mirrors_urls
-wineup_version="wineup-1.0-beta"
+wineup_version="wineup-1.1-beta"
 help="
 Uso: $(basename "$0") [ opção ]
 
@@ -29,10 +29,10 @@ source /etc/wineup/wineup_mirrors
 #----------------------------Funçoes-------------------------------
 
 start_gui(){
-	[ -e "${HOME}/.wine/system.reg" ] && {
+	[ ! -e "${dir_wineup_user}/wineprefix_list" -a -e "${HOME}/.wine/system.reg" ] && {
 		printf "${HOME}/.wine" >> "${dir_wineup_user}/wineprefix_list"
 	}
-	gui_list=$(zenity --class="${wineup_version}" --title="${wineup_version}" --list \
+	gui_list=$(zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" --list \
 		--width=750 \
 		--height=400 \
 		--extra-button="Importar Prefix" \
@@ -60,22 +60,171 @@ start_gui(){
 		exit 0
 	}
 	[ "${gui_list}" == "Importar Prefix" ] && import_prefix
-	[ "${gui_list}" == "Gerenciar runners" ] && update_db
+	[ "${gui_list}" == "Gerenciar runners" ] && runners_db
 	prefix_db "${gui_list}"
+}
+
+prefix_db(){
+	[ "${1}" == dxvk ] && {
+		export WINEPREFIX="${2}"
+		acao_prefix="Gerenciar DXVK/VKD3D"
+	} || {
+		export WINEPREFIX="${1}"
+		prefix=$(zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" \
+			--text=" Gerenciar Wineprefix: \n  ${WINEPREFIX}  \n" \
+			--cancel-label="Voltar" \
+			--extra-button="Remover" \
+			--extra-button="Excluir" \
+			--forms --width=400 \
+			--separator="|" \
+			--add-combo="Ação:" \
+			--combo-values="Gerenciar DXVK/VKD3D|Rodar winecfg|Rodar winetricks")
+		[ -z "${prefix}" ] && start_gui
+		[ "${prefix}" == ' | ' ] && start_gui
+		[ "${prefix}" == "Remover" -o "${prefix}" == "Excluir" ] && {
+			[ "${prefix}" == "Excluir" ] && rm -rf ${WINEPREFIX:=/dev/null}
+			old_list=$(cat "${dir_wineup_user}/wineprefix_list" 2>/dev/null)
+			printf "${old_list/"${WINEPREFIX}"/}" > "${dir_wineup_user}/wineprefix_list"
+			start_gui
+		}
+		acao_prefix=${prefix}
+	}
+	[ "${WINEPREFIX}" == " " -o "${acao_prefix}" == " " ] && prefix_db
+	case "${acao_prefix}" in
+		'Gerenciar DXVK/VKD3D')
+			backend_api=$(ls ${dir_downloads} | grep -E "dxvk|vkd3d" | tr '\n' '|')
+			backend_select=$(zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" \
+				--text="Gerenciar DXVK/VKD3D:" \
+				--forms --width=400 \
+				--separator="|" \
+				--add-combo="Backend API:" \
+				--combo-values="${backend_api%|}" \
+				--add-combo="Ação:" \
+				--combo-values="Instalar/Atualizar|Desinstalar|Baixar outras versões")
+			[ -z "${backend_select}" ] && start_gui
+			[ "${backend_select}" == ' | ' ] && start_gui
+			backend_version=${backend_select%%|*}
+			acao_backend=${backend_select##*|}
+			case "${acao_backend}" in
+				"Instalar/Atualizar")
+					(
+						printf ${backend_version} | grep -q "dxvk" && script_setup="setup_dxvk.sh" || script_setup="setup_vkd3d_proton.sh"
+						${dir_downloads}/${backend_version}/${script_setup} install &>/dev/null && {
+							notify-send "${wineup_version}" "Instalado/Atualizado!"
+						}
+					) | zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Instalando/Atualizando, aguarde..." --progress --pulsate --no-cancel
+				;;
+				"Desinstalar")
+					(
+						printf ${backend_version} | grep -q "dxvk" && script_setup="setup_dxvk.sh" || script_setup="setup_vkd3d_proton.sh"
+						${dir_downloads}/${backend_version}/${script_setup} uninstall &>/dev/null && {
+							notify-send "${wineup_version}" "Desinstalado!"
+						}
+					) | zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Desinstalando, aguarde..." --progress --pulsate --no-cancel
+				;;
+				"Baixar outras versões")update_db;;
+			esac
+			prefix_db ${WINEPREFIX}
+		;;
+		'Rodar winecfg')
+			winecfg
+			sleep 3
+			prefix_db "${WINEPREFIX}"
+		;;
+		"Rodar winetricks")
+			winetricks
+			prefix_db "${WINEPREFIX}"
+		;;
+	esac
+	prefix_db ${WINEPREFIX}
+}
+
+import_prefix(){
+	import_prefix_dirs=$(zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" --file-selection --directory --multiple \
+		--width=400 \
+		--height=500 \
+		--text="" \
+		--separator="|")
+	[ -s "${dir_wineup_user}/wineprefix_list" ] && separetor="|" || separetor=""
+	[ -z "${import_prefix_dirs}" ] && start_gui
+	for import_prefix_dirs_test in $(printf ${import_prefix_dirs//|/ });do
+		[ -e "${import_prefix_dirs_test}/system.reg" ] || {
+			new_prefix=$(zenity --name="wineup" --class="${WINEPREFIX}" --title="${wineup_version}" \
+				--text=" Criar novo Prefixo: \n  ${WINEPREFIX}  \n" \
+				--cancel-label="Voltar" \
+				--forms --width=400 \
+				--separator="|" \
+				--add-combo="Arquitetura:" \
+				--combo-values="32 bits|64 bits" \
+				--add-combo="Versão do Windowns:" \
+				--combo-values="10|8.1|8|2008\ R2|7|2008|Vista|2003|XP")
+			[ -z "${new_prefix}" -o "${new_prefix}" = " " ] && start_gui
+			case ${new_prefix%%|*} in
+				"32 bits")WINEARCH="win32";;
+				"64 bits")WINEARCH="win64";;
+			esac
+			case ${new_prefix##*|} in
+				10)win_version="win10";;
+				8.1)win_version="win81";;
+				8)win_version="win8";;
+				2008\ R2)win_version="win2008r2";;
+				7)win_version="win7";;
+				2008)win_version="win2008";;
+				Vista)win_version="vista";;
+				2003)win_version="win2003";;
+				XP)[ "${WINEARCH}" == "win32" ] && win_version="winxp" || win_version="winxp64" ;;
+			esac
+			(
+				WINEPREFIX="${import_prefix_dirs_test}" WINEARCH=${WINEARCH} winecfg /v ${win_version}
+				sleep 5 && notify-send "${wineup_version}" "Prefixo gerado com sucesso!"
+			) | zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Gerando Prefixo, aguarde..." --progress --pulsate --no-cancel
+		}
+	done
+	printf "${separetor}${import_prefix_dirs}" >> "${dir_wineup_user}/wineprefix_list"
+	kill -9 "${pid_while_z}" "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
+	start_gui
+}
+
+runners_db(){
+	runners_select=$(zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" --list --multiple --checklist \
+			--width=750 \
+			--height=400 \
+			--text="Versões instaladas:" \
+			--separator=" " \
+			--column="" \
+			--column="Versão  " \
+			--column="Local  " \
+			--ok-label="Excluir" \
+			--extra-button="Baixar outros" \
+			$(
+				for exclui_list in ${dir_steamproton:-/dev/null}/* ${dir_downloads:-/dev/null}/* ;do
+					[ "`basename ${exclui_list}`" == '*' ] && continue
+					printf "0 `basename ${exclui_list}` "
+					printf "`dirname ${exclui_list}` "
+				done
+			)
+	)
+	[ -z "${runners_select}" ] && start_gui
+	[ "${runners_select}" == "Baixar outros" ] && update_db
+	(
+		for exclui_list in ${runners_select} ;do
+			find "${dir_steamproton:-/dev/null}/" "${dir_downloads:-/dev/null}/" -iname ${exclui_list} -exec rm -rf {} \; &> /dev/null
+		done
+		notify-send "${wineup_version}" "Arquivos excluidos com sucesso!"
+	) | zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Excluindo arquivos, aguarde..." --progress --pulsate --no-cancel
+	start_gui
 }
 
 # Procura atualizações
 update_db(){
 	rm -rf "/tmp/wineup"
 	mkdir "/tmp/wineup"
-		tool_type=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
+		tool_type=$(zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" \
 			--text="Escolha qual ferramenta você quer baixar:" \
 			--cancel-label="Voltar" \
-			--extra-button="Gerenciar instalados" \
 			--forms --width=400 --add-combo="Versão:" \
 			--combo-values="WineGE|WineLutris|WineTKG|ProtonGE|ProtonTKG|LuxtorpedaDEV|DXVK|VKD3D-Proton" )
-	[ -z "$tool_type" -o "${tool_type}" = " " ] && start_gui
-	[ "$tool_type" == "Gerenciar instalados" ] && exclui_db
+	[ -z "$tool_type" -o "${tool_type}" = " " ] && runners_db
 	(
 		# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
 		index=$(cat "/etc/wineup/wineup_mirrors" | grep -Eio "( ${tool_type} )")
@@ -98,7 +247,7 @@ update_db(){
 		} || {
 			printf "${release_list}" | grep -iv "proton" > "/tmp/wineup/url_release_list"
 		}
-	) | zenity --class="${wineup_version}" --title="${wineup_version}" \
+	) | zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" \
 		--width=400 --text="Atualizando listas, aguarde..." \
 		--progress --pulsate --auto-close --no-cancel
 	export pid_update_z=$(pidof -s zenity)
@@ -109,79 +258,25 @@ update_db(){
 	}
 }
 
-prefix_db(){
-	[ "${1}" == dxvk ] && {
-		export WINEPREFIX="${2}"
-		acao_prefix="Gerenciar DXVK/VKD3D"
-	} || {
-		export WINEPREFIX="${1}"
-		prefix=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
-			--text=" Gerenciar Wineprefix: \n  ${WINEPREFIX}  \n" \
-			--cancel-label="Voltar" \
-			--extra-button="Remover" \
-			--extra-button="Excluir" \
-			--forms --width=400 \
-			--separator="|" \
-			--add-combo="Ação:" \
-			--combo-values="Gerenciar DXVK/VKD3D|Rodar winecfg|Rodar winetricks")
-		[ -z "${prefix}" ] && start_gui
-		[ "${prefix}" == ' | ' ] && start_gui
-		[ "${prefix}" == "Remover" -o "${prefix}" == "Excluir" ] && {
-			[ "${prefix}" == "Excluir" ] && rm -rf ${WINEPREFIX:=/dev/null}
-			old_list=$(cat "${dir_wineup_user}/wineprefix_list")
-			printf "${old_list/"${WINEPREFIX}"/}" > "${dir_wineup_user}/wineprefix_list"
-			start_gui
-		}
-		acao_prefix=${prefix}
-	}
-	[ "${WINEPREFIX}" == " " -o "${acao_prefix}" == " " ] && prefix_db
-	case "${acao_prefix}" in
-		'Gerenciar DXVK/VKD3D')
-			backend_api=$(ls ${dir_downloads} | grep -E "dxvk|vkd3d" | tr '\n' '|')
-			backend_select=$(zenity --class="${wineup_version}" --title="${wineup_version}" \
-				--text="Gerenciar DXVK/VKD3D:" \
-				--forms --width=400 \
-				--separator="|" \
-				--add-combo="Backend API:" \
-				--combo-values="${backend_api%|}" \
-				--add-combo="Ação:" \
-				--combo-values="Instalar/Atualizar|Desinstalar|Baixar outras versões")
-			[ -z "${backend_select}" ] && start_gui
-			[ "${backend_select}" == ' | ' ] && start_gui
-			backend_version=${backend_select%%|*}
-			acao_backend=${backend_select##*|}
-			case "${acao_backend}" in
-				"Instalar/Atualizar")
-					(
-						printf ${backend_version} | grep -q "dxvk" && script_setup="setup_dxvk.sh" || script_setup="setup_vkd3d_proton.sh"
-						${dir_downloads}/${backend_version}/${script_setup} install &>/dev/null && {
-							notify-send "${wineup_version}" "Instalado/Atualizado!"
-						}
-					) | zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Instalando/Atualizando, aguarde..." --progress --pulsate --no-cancel
-				;;
-				"Desinstalar")
-					(
-						printf ${backend_version} | grep -q "dxvk" && script_setup="setup_dxvk.sh" || script_setup="setup_vkd3d_proton.sh"
-						${dir_downloads}/${backend_version}/${script_setup} uninstall &>/dev/null && {
-							notify-send "${wineup_version}" "Desinstalado!"
-						}
-					) | zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Desinstalando, aguarde..." --progress --pulsate --no-cancel
-				;;
-				"Baixar outras versões")update_db;;
-			esac
-			prefix_db ${WINEPREFIX}
-		;;
-		'Rodar winecfg')
-			winecfg
-			sleep 3
-			prefix_db "${WINEPREFIX}"
-		;;
-		"Rodar winetricks")
-			winetricks
-			prefix_db "${WINEPREFIX}"
-		;;
-	esac
-	prefix_db ${WINEPREFIX}
+download_db(){
+		# Obtem a lista de versões disponiveins
+		kill -9 "${pid_update_z}" 2>/dev/null
+		# Selecionar uma ou mais versões para download
+		selec_list=$(zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" --list --multiple --checklist \
+			--width=450 \
+			--height=600 \
+			--text="Versões disponiveins:" \
+			--separator=" " \
+			--column="" \
+			--column="Versão" \
+			$(for i in `cat "/tmp/wineup/url_release_list" | awk -F '/' '{print $9}'`;do printf "0 \n${i} \n";done)
+		)
+		[ -z "$selec_list" ] && update_db
+		# Obtem as URLs e prepara para o download
+		for url_get in $selec_list;do
+			grep "$url_get" /tmp/wineup/url_release_list >> "/tmp/wineup/dowload_list"
+		done
+		download_file ${1}
 }
 
 # Responsavel por baixar os arquivos solicitados
@@ -212,100 +307,14 @@ download_file(){
 		}
 	) |
 	# Mostra o progresso do download e extração
-	zenity --class="${wineup_version}" --title="${wineup_version}" \
+	zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" \
 		--text="Iniciando downloads" \
 		--progress --pulsate --width=400 \
 		--auto-kill --no-cancel
 	[ "${1}" == "_update_db" ] && update_db || ${1#_} dxvk ${WINEPREFIX}
 }
 
-download_db(){
-		# Obtem a lista de versões disponiveins
-		kill -9 "${pid_update_z}" 2>/dev/null
-		# Selecionar uma ou mais versões para download
-		selec_list=$(zenity --class="${wineup_version}" --title="${wineup_version}" --list --multiple --checklist \
-			--width=450 \
-			--height=600 \
-			--text="Versões disponiveins:" \
-			--separator=" " \
-			--column="" \
-			--column="Versão" \
-			$(for i in `cat "/tmp/wineup/url_release_list" | awk -F '/' '{print $9}'`;do printf "0 \n${i} \n";done)
-		)
-		[ -z "$selec_list" ] && update_db
-		# Obtem as URLs e prepara para o download
-		for url_get in $selec_list;do
-			grep "$url_get" /tmp/wineup/url_release_list >> "/tmp/wineup/dowload_list"
-		done
-		download_file ${1}
-}
 
-exclui_db(){
-	selec_exclui=$(zenity --class="${wineup_version}" --title="${wineup_version}" --list --multiple --checklist \
-			--width=450 \
-			--height=500 \
-			--text="Versões instaladas:" \
-			--separator=" " \
-			--column="" \
-			--column="Versão" \
-			--ok-label=Excluir \
-			$(for i in ${dir_steamproton:-/dev/null}/* ${dir_downloads:-/dev/null}/* ;do [ '*' == "`basename ${i}`" ] || printf "0 \n`basename ${i}` \n"; done)
-	)
-	[ -z "${selec_exclui}" ] && update_db
-	(
-		for a in ${selec_exclui} ;do
-			find "${dir_steamproton:-/dev/null}/" "${dir_downloads:-/dev/null}/" -iname ${a} -exec rm -rf {} \; &> /dev/null
-		done
-		notify-send "${wineup_version}" "Arquivos excluidos com sucesso!"
-	) | zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Excluindo arquivos, aguarde..." --progress --pulsate --no-cancel
-	update_db
-}
-
-import_prefix(){
-	import_prefix_dirs=$(zenity --class="${wineup_version}" --title="${wineup_version}" --file-selection --directory --multiple \
-		--width=400 \
-		--height=500 \
-		--text="" \
-		--separator="|")
-	[ -s "${dir_wineup_user}/wineprefix_list" ] && separetor="|" || separetor=""
-	[ -z "${import_prefix_dirs}" ] && start_gui
-	for import_prefix_dirs_test in $(printf ${import_prefix_dirs//|/ });do
-		[ -e "${import_prefix_dirs_test}/system.reg" ] || {
-			new_prefix=$(zenity --class="${WINEPREFIX}" --title="${wineup_version}" \
-				--text=" Criar novo Prefixo: \n  ${WINEPREFIX}  \n" \
-				--cancel-label="Voltar" \
-				--forms --width=400 \
-				--separator="|" \
-				--add-combo="Arquitetura:" \
-				--combo-values="32 bits|64 bits" \
-				--add-combo="Versão do Windowns:" \
-				--combo-values="10|8.1|8|2008\ R2|7|2008|Vista|2003|XP")
-			[ -z "${new_prefix}" -o "${new_prefix}" = " " ] && start_gui
-			case ${new_prefix%%|*} in
-				"32 bits")WINEARCH="win32";;
-				"64 bits")WINEARCH="win64";;
-			esac
-			case ${new_prefix##*|} in
-				10)win_version="win10";;
-				8.1)win_version="win81";;
-				8)win_version="win8";;
-				2008\ R2)win_version="win2008r2";;
-				7)win_version="win7";;
-				2008)win_version="win2008";;
-				Vista)win_version="vista";;
-				2003)win_version="win2003";;
-				XP)[ "${WINEARCH}" == "win32" ] && win_version="winxp" || win_version="winxp64" ;;
-			esac
-			(
-				WINEPREFIX="${import_prefix_dirs_test}" WINEARCH=${WINEARCH} winecfg /v ${win_version}
-				sleep 5 && notify-send "${wineup_version}" "Prefixo gerado com sucesso!"
-			) | zenity --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Gerando Prefixo, aguarde..." --progress --pulsate --no-cancel
-		}
-	done
-	printf "${separetor}${import_prefix_dirs}" >> "${dir_wineup_user}/wineprefix_list"
-	kill -9 "${pid_while_z}" "${pid_progress_z}" 2>/dev/null && export pid_progress_z="dead"
-	start_gui
-}
 
 #------------------------------------------------------------------
 
