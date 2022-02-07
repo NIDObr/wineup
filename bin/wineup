@@ -268,6 +268,7 @@ import_prefix(){
 		--text="" \
 		--separator="|")
 	[ -s "${dir_wineup_user}/wineprefix_list" ] && separetor="|" || separetor=""
+	[ -z "${import_prefix_dirs}" ] && start_gui
 	for import_prefix_dirs_test in $(printf ${import_prefix_dirs//|/ });do
 		[ -e "${import_prefix_dirs_test}/system.reg" ] || {
 			new_prefix=$(zenity --class="${WINEPREFIX}" --title="${wineup_version}" \
