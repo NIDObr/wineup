@@ -176,8 +176,11 @@ import_prefix(){
 			esac
 			(
 				WINEPREFIX="${import_prefix_dirs_test}" WINEARCH=${WINEARCH} winecfg /v ${win_version}
-				sleep 5 && notify-send "${wineup_version}" "Prefixo gerado com sucesso!"
-			) | zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Gerando Prefixo, aguarde..." --progress --pulsate --no-cancel
+				sleep 5 && {
+					notify-send "${wineup_version}" "Prefixo gerado com sucesso!"
+					printf 100
+				}
+			) | zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Gerando Prefixo, aguarde..." --progress --pulsate --no-cancel --auto-close
 		}
 	done
 	printf "${separetor}${import_prefix_dirs}" >> "${dir_wineup_user}/wineprefix_list"
