@@ -49,10 +49,10 @@ start_gui(){
 			win_version=$(grep -Eo -m1 'Windows (10|8.1|8|2008\ R2|7|2008|Vista|2003|XP)' "${path_prefix}/system.reg")
 			printf " ${win_version/Windows /w} "
 			dxvk_version="`strings -s " " "${path_prefix}/dosdevices/c:/windows/system32/dxgi.dll" | grep -Eo 'DXVK:  v[0-9\.]{1,}'`"
-			[ -z "${dxvk_version}" ] && dxvk_version=${dxvk_version:=none}
+			dxvk_version=${dxvk_version:=none}
 			printf "${dxvk_version//DXVK:  /} "
-			strings "${path_prefix}/dosdevices/c:/windows/system32/d3d12.dll" | grep -q 'vkd3d' && vkd3d_version="vkd3d" || vkd3d_version="none"
-			printf "${vkd3d_version} "
+			strings "${path_prefix}/dosdevices/c:/windows/system32/d3d12.dll" | grep -q 'vkd3d' && vkd3d_version="vkd3d"
+			printf "${vkd3d_version:=none} "
 		done)
 	)
 	[ -z "${gui_list}" -o "${gui_list}" = " " ] && {
@@ -122,7 +122,7 @@ prefix_db(){
 						}
 					) | zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" --width=400 --text="Desinstalando, aguarde..." --progress --pulsate --no-cancel
 				;;
-				"Baixar outras versões")update_db;;
+				"Baixar outras versões")update_db dxvk;;
 			esac
 			prefix_db ${WINEPREFIX}
 		;;
@@ -222,12 +222,14 @@ runners_db(){
 update_db(){
 	rm -rf "/tmp/wineup"
 	mkdir "/tmp/wineup"
-		tool_type=$(zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" \
-			--text="Escolha qual ferramenta você quer baixar:" \
-			--cancel-label="Voltar" \
-			--forms --width=400 --add-combo="Versão:" \
-			--combo-values="WineGE|WineLutris|WineTKG|ProtonGE|ProtonTKG|LuxtorpedaDEV|DXVK|VKD3D-Proton" )
-	[ -z "$tool_type" -o "${tool_type}" = " " ] && runners_db
+	tool_type=$(zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" \
+		--text="Escolha qual ferramenta você quer baixar:" \
+		--cancel-label="Voltar" \
+		--forms --width=400 --add-combo="Versão:" \
+		--combo-values="WineGE|WineLutris|WineTKG|ProtonGE|ProtonTKG|LuxtorpedaDEV|DXVK|VKD3D-Proton" )
+	[ -z "$tool_type" -o "${tool_type}" = " " ] && {
+		[ "${1}" == "dxvk" ] && prefix_db || runners_db
+	}
 	(
 		# Responsavel pelo Web-Scraping, extrai as informações necessarias das urls
 		index=$(cat "/etc/wineup/wineup_mirrors" | grep -Eio "( ${tool_type} )")
