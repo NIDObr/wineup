@@ -250,7 +250,12 @@ update_db(){
 		[ "${tool_type}" == "ProtonTKG" -o "${tool_type}" == "ProtonGE" -o "${tool_type}" == "VKD3D-Proton" ] && {
 			printf "${release_list}" | grep -i "proton" > "/tmp/wineup/url_release_list"
 		} || {
-			printf "${release_list}" | grep -iv "proton" > "/tmp/wineup/url_release_list"
+			# Follows the new WINE GE naming standard
+			printf "${release_list}" | grep -iq "wine-lutris-GE-Proton" && {
+				printf "${release_list}" > "/tmp/wineup/url_release_list"
+			} || {
+				printf "${release_list}" | grep -iv "proton" > "/tmp/wineup/url_release_list"
+			}
 		}
 	) | zenity --name="wineup" --class="${wineup_version}" --title="${wineup_version}" \
 		--width=400 --text="Atualizando listas, aguarde..." \
