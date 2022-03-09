@@ -302,6 +302,8 @@ download_file(){
 			for file_extract in /tmp/wineup/downloads/* ;do
 				if $(basename "${file_extract}" | grep -qi 'vkd3d');then
 					tar -xaf "${file_extract}" -C "${dir_downloads}"
+				elif $(basename "${file_extract}" | grep -qi 'wine-lutris-GE');then
+					tar -xaf "${file_extract}" -C "${dir_downloads}"
 				elif $(basename "${file_extract}" | grep -qi 'proton');then
 					tar -xaf "${file_extract}" -C "${dir_steamproton}"
 				elif $(basename "${file_extract}" | grep -qi 'luxtorpeda');then
